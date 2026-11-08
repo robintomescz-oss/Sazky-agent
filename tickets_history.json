@@ -51,5 +51,35 @@
       }
     ],
     "summary": "Tiket je postaven na dva velmi bezpečné domácí favority (Man City, Real Madrid) s nízkým kurzem a jednu sázku na góly v zápase s vysokou ofenzivní aktivitou. Celkový kurz 2.05 splňuje cíl konzervativního rizika s přiměřenou výnosností."
+  },
+  {
+    "id": 3,
+    "date": "2026-11-08 11:10",
+    "total_odds": 1.905,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "SC Cambuur-Leeuwarden vs PSV",
+        "league": "Eredivisie",
+        "selection": "Over 1.5",
+        "odds": 1.2,
+        "confidence_reason": "PSV má výraznou ofenzivní kvalitu; k výhře tipu stačí alespoň dva góly v zápase."
+      },
+      {
+        "match": "Brighton & Hove Albion FC vs Brentford FC",
+        "league": "Premier League",
+        "selection": "Over 1.5",
+        "odds": 1.27,
+        "confidence_reason": "Oba týmy mají potenciál přispět k otevřenému utkání a hranice dvou gólů je relativně nízká."
+      },
+      {
+        "match": "FC Internazionale Milano vs Como 1907",
+        "league": "Serie A",
+        "selection": "Over 1.5",
+        "odds": 1.25,
+        "confidence_reason": "Inter disponuje silným útokem a může hranici překonat i výrazným podílem na skóre."
+      }
+    ],
+    "summary": "Kombinace tří sázek na Over 1.5 omezuje závislost na přesném vítězi, ale tiket stále nese běžné kumulované riziko. Kurzy jsou orientační odhady, nikoli ověřené živé nabídky; ověřte také aktuální termíny a dostupnost zápasů."
   }
 ]
