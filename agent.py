@@ -4,56 +4,132 @@ import re
 from datetime import datetime
 import requests
 from dotenv import load_dotenv
+from json_repair import repair_json
 from openai import OpenAI
 
 load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 FOOTBALL_DATA_API_KEY = os.getenv("FOOTBALL_DATA_API_KEY")
 HISTORY_FILE = "tickets_history.json"
 
-client = OpenAI(
+# Inicializace klienta OpenRouter
+openrouter_client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=OPENROUTER_API_KEY,
-)
+) if OPENROUTER_API_KEY else None
 
-def extract_json(text):
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if match:
-        return json.loads(match.group(0))
-    raise ValueError("V odpovědi nebyl nalezen validní JSON.")
+def parse_and_repair_json(text):
+    """Bezpečně extrahuje a opraví JSON z odpovědi modelu."""
+    try:
+        # Hledáme první { a poslední }
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        raw_json_str = match.group(0) if match else text
+        repaired = repair_json(raw_json_str, return_objects=True)
+        if isinstance(repaired, dict):
+            return repaired
+    except Exception as e:
+        print(f"Chyba při opravě JSON: {e}")
+    raise ValueError("Nepodařilo se extrahovat platný JSON objekt.")
 
 def fetch_today_matches():
-    """Stáhne dnešní zápasy z hlavních evropských lig z football-data.org."""
-    today = datetime.now().strftime("%Y-%m-%d")
-    url = f"https://api.football-data.org/v4/matches?dateFrom={today}&dateTo={today}"
-    headers = {"X-Auth-Token": FOOTBALL_DATA_API_KEY} if FOOTBALL_DATA_API_KEY else {}
-    
+    """Stáhne dnešní zápasy z football-data.org."""
+    url = "https://api.football-data.org/v4/matches"
+    headers = {"X-Auth-Token": FOOTBALL_DATA_API_KEY.strip()} if FOOTBALL_DATA_API_KEY else {}
+
     try:
         res = requests.get(url, headers=headers, timeout=10)
-        if res.status_code == 200:
-            data = res.json()
-            matches = []
-            # Filtrujeme hlavní ligy: PL, La Liga, Bundesliga, Serie A, Ligue 1, Liga mistrů
-            allowed_competitions = {"PL", "PD", "BL1", "SA", "FL1", "CL", "EL"}
-            for m in data.get("matches", []):
-                comp = m.get("competition", {}).get("code")
-                if comp in allowed_competitions or not FOOTBALL_DATA_API_KEY:
-                    matches.append({
-                        "home": m["homeTeam"]["name"],
-                        "away": m["awayTeam"]["name"],
-                        "league": m.get("competition", {}).get("name", "Fotbal"),
-                        "status": m.get("status")
-                    })
-            return matches
-        else:
+        if res.status_code != 200:
             print(f"Chyba při stahování zápasů ({res.status_code}): {res.text}")
             return []
+
+        data = res.json()
+        raw_matches = data.get("matches", [])
+        
+        allowed_competitions = {"PL", "PD", "BL1", "SA", "FL1", "DED", "PPL", "CL", "EL"}
+        matches = []
+
+        for m in raw_matches:
+            comp_code = m.get("competition", {}).get("code")
+            if comp_code in allowed_competitions:
+                matches.append({
+                    "home": m["homeTeam"]["name"],
+                    "away": m["awayTeam"]["name"],
+                    "league": m.get("competition", {}).get("name", "Fotbal"),
+                    "status": m.get("status")
+                })
+
+        if not matches and raw_matches:
+            for m in raw_matches[:12]:
+                matches.append({
+                    "home": m["homeTeam"]["name"],
+                    "away": m["awayTeam"]["name"],
+                    "league": m.get("competition", {}).get("name", "Fotbal"),
+                    "status": m.get("status")
+                })
+
+        return matches
     except Exception as e:
         print(f"Výjimka při stahování zápasů: {e}")
         return []
+
+def ask_gemini(system_prompt, user_prompt):
+    """Zavolá Gemini Flash s vynuceným JSON formátem."""
+    if not GEMINI_API_KEY:
+        return None
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                temperature=0.2,
+                max_output_tokens=1500,
+            ),
+        )
+        if response and response.text:
+            return parse_and_repair_json(response.text)
+    except Exception as e:
+        print(f"Gemini API selhalo nebo není dostupné ({e}), přecházím na zálohu...")
+    return None
+
+def ask_openrouter(system_prompt, user_prompt):
+    """Záložní volání modelů na OpenRouteru s automatickou opravou JSONu."""
+    if not openrouter_client:
+        return None
+
+    models = [
+        "openrouter/auto",
+        "liquid/lfm-2.5-2.6b:free",
+        "nvidia/nemotron-3.5-lightning:free"
+    ]
+
+    for model_name in models:
+        try:
+            print(f"Zkouším záložní model OpenRouter: {model_name}...")
+            res = openrouter_client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                max_tokens=1200,
+                temperature=0.2
+            )
+            if res and res.choices and res.choices[0].message.content:
+                return parse_and_repair_json(res.choices[0].message.content)
+        except Exception as e:
+            print(f"Model {model_name} selhal ({e})...")
+            continue
+    return None
 
 def generate_ticket(matches):
     today = datetime.now().strftime("%Y-%m-%d")
@@ -62,8 +138,8 @@ def generate_ticket(matches):
         print("Dnes nebyly nalezeny žádné zápasy v podporovaných ligách.")
         return None
 
-    prompt = f"""
-Jsi konzervativní sportovní analytik zaměřený na fotbal.
+    system_prompt = "Jsi konzervativní sportovní analytik zaměřený na fotbal. Odpovídej výhradně ve validním formátu JSON."
+    user_prompt = f"""
 Dnešní datum je: {today}.
 
 Zde je seznam dnešních reálných zápasů:
@@ -74,7 +150,7 @@ Vyber 2 až 3 nejbezpečnější tipy výhradně z této nabídky:
 - Nebo sázky na góly: Over 1.5 gólu u týmů s vysokou ofenzivní silou.
 - Celkový kurz tiketu cca 1.90 až 2.20 (musí odpovídat součinu dílčích kurzů).
 
-Vrať VÝHRADNĚ platný JSON (bez jakýchkoliv značek nebo dalšího textu):
+Vrať VÝHRADNĚ platný JSON v této struktuře:
 {{
   "ticket": [
     {{
@@ -89,36 +165,13 @@ Vrať VÝHRADNĚ platný JSON (bez jakýchkoliv značek nebo dalšího textu):
   "analysis_summary": "krátké zhodnocení strategie pro dnešní den"
 }}
 """
-    free_models = []
-    try:
-        models_data = client.models.list().data
-        free_models = [m.id for m in models_data if ":free" in m.id]
-    except Exception:
-        pass
 
-    if "openrouter/auto" not in free_models:
-        free_models.append("openrouter/auto")
+    print("Zkouším primární motor: Google Gemini 2.5 Flash...")
+    ticket_data = ask_gemini(system_prompt, user_prompt)
 
-    ticket_data = None
-    for model_name in free_models:
-        try:
-            print(f"Zkouším model: {model_name}...")
-            res = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": "Jsi konzervativní sportovní analytik. Odpovídej výhradně ve validním formátu JSON."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=1200,
-                temperature=0.2
-            )
-            if res and res.choices and res.choices[0].message.content:
-                ticket_data = extract_json(res.choices[0].message.content.strip())
-                print(f"Úspěšně sestaven tiket modelem: {model_name}")
-                break
-        except Exception as e:
-            print(f"Model {model_name} selhal ({e}), zkouším další...")
-            continue
+    if not ticket_data:
+        print("Přepínám na záložní motor: OpenRouter...")
+        ticket_data = ask_openrouter(system_prompt, user_prompt)
 
     return ticket_data
 
