@@ -21,5 +21,35 @@
       }
     ],
     "summary": "Konzervativní tiket na dva silné domácí favority s dobrým poměrem rizika a výnosu. Celkový kurz splňuje požadovaný rozsah."
+  },
+  {
+    "id": 2,
+    "date": "2026-11-08 09:29",
+    "total_odds": 2.05,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "Manchester City vs Crystal Palace",
+        "league": "English Premier League",
+        "selection": "Výhra domácích",
+        "odds": 1.35,
+        "confidence_reason": "Man City je dominantní domácí tým s minimálními šancemi Crystal Palace na body na Etihad."
+      },
+      {
+        "match": "Real Madrid vs Sevilla",
+        "league": "La Liga",
+        "selection": "Výhra domácích",
+        "odds": 1.3,
+        "confidence_reason": "Real Madrid na Bernabéu proti slabší Seville má velmi vysokou úspěšnost a kvalitativní převahu."
+      },
+      {
+        "match": "Liverpool vs Aston Villa",
+        "league": "English Premier League",
+        "selection": "Over 1.5 gólu",
+        "odds": 1.15,
+        "confidence_reason": "Oba týmy hrají ofenzivní fotbal a zápas na Anfield má potenciál pro vysoký počet branek."
+      }
+    ],
+    "summary": "Tiket je postaven na dva velmi bezpečné domácí favority (Man City, Real Madrid) s nízkým kurzem a jednu sázku na góly v zápase s vysokou ofenzivní aktivitou. Celkový kurz 2.05 splňuje cíl konzervativního rizika s přiměřenou výnosností."
   }
 ]
