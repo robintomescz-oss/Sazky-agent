@@ -134,8 +134,9 @@ def ask_openrouter(system_prompt, user_prompt):
 def generate_ticket(matches):
     today = datetime.now().strftime("%Y-%m-%d")
 
-    if not matches:
-        print("Dnes nebyly nalezeny žádné zápasy v podporovaných ligách.")
+    # Pokud je v nabídce méně než 4 zápasy, raději netipujeme
+    if not matches or len(matches) < 4:
+        print("Dnes není k dispozici dostatek kvalitních zápasů pro bezpečný výběr.")
         return None
 
     system_prompt = "Jsi konzervativní sportovní analytik zaměřený na fotbal. Odpovídej výhradně ve validním formátu JSON."
@@ -145,10 +146,14 @@ Dnešní datum je: {today}.
 Zde je seznam dnešních reálných zápasů:
 {json.dumps(matches, ensure_ascii=False, indent=2)}
 
-Vyber 2 až 3 nejbezpečnější tipy výhradně z této nabídky:
-- Silní favorité (Výhra domácích, odhadovaný kurz 1.25 až 1.45)
-- Nebo sázky na góly: Over 1.5 gólu u týmů s vysokou ofenzivní silou.
-- Celkový kurz tiketu cca 1.90 až 2.20 (musí odpovídat součinu dílčích kurzů).
+Sestav AKU tiket PŘÍSNĚ ZE 2 NEJBEZPEČNĚJŠÍCH ZÁPASŮ (žádný třetí zápas):
+1. Zápas 1: Silný favorit na domácí půdě (Výhra domácích) NEBO otevřený ofenzivní zápas (Over 1.5). Kurz cca 1.35 až 1.48.
+2. Zápas 2: Silný favorit na domácí půdě (Výhra domácích) NEBO otevřený ofenzivní zápas (Over 1.5). Kurz cca 1.35 až 1.48.
+
+Pravidla:
+- Žádné sázky na outsidery.
+- Žádný třetí zápas.
+- Celkový kurz tiketu cca 1.90 až 2.15 (součin kurzů).
 
 Vrať VÝHRADNĚ platný JSON v této struktuře:
 {{
@@ -157,11 +162,18 @@ Vrať VÝHRADNĚ platný JSON v této struktuře:
       "match": "Domácí vs Hosté",
       "league": "Název ligy",
       "selection": "Výhra domácích / Over 1.5",
-      "odds": 1.35,
+      "odds": 1.40,
+      "confidence_reason": "stručný důvod výběru"
+    }},
+    {{
+      "match": "Domácí vs Hosté",
+      "league": "Název ligy",
+      "selection": "Výhra domácích / Over 1.5",
+      "odds": 1.42,
       "confidence_reason": "stručný důvod výběru"
     }}
   ],
-  "total_odds": 2.05,
+  "total_odds": 1.99,
   "analysis_summary": "krátké zhodnocení strategie pro dnešní den"
 }}
 """
@@ -174,7 +186,6 @@ Vrať VÝHRADNĚ platný JSON v této struktuře:
         ticket_data = ask_openrouter(system_prompt, user_prompt)
 
     return ticket_data
-
 def save_ticket_to_history(ticket_data):
     if not ticket_data or not ticket_data.get("ticket"):
         return
