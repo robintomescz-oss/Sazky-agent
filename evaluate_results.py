@@ -10,6 +10,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 FOOTBALL_DATA_API_KEY = os.getenv("FOOTBALL_DATA_API_KEY")
 HISTORY_FILE = "tickets_history.json"
+BASE_STAKE = 1000  # Základní vklad v Kč pro Krok 1
 
 def fetch_api_matches():
     """Stáhne aktuální výsledky zápasů z football-data.org."""
@@ -53,20 +54,70 @@ def evaluate_selection(selection, home_goals, away_goals):
 
     if "over 1.5" in sel:
         return total_goals >= 2
-    if "výhra domácích" in sel or sel.strip() == "1":
-        return home_goals > away_goals
-    if "výhra hostů" in sel or sel.strip() == "2":
-        return away_goals > home_goals
     if "neprohra domácích" in sel or "1x" in sel:
         return home_goals >= away_goals
     if "neprohra hostů" in sel or "x2" in sel:
         return away_goals >= home_goals
-    if "remíza" in sel or sel.strip() == "x":
-        return home_goals == away_goals
+    if "výhra domácích" in sel or sel.strip() == "1":
+        return home_goals > away_goals
+    if "výhra hostů" in sel or sel.strip() == "2":
+        return away_goals > home_goals
     if "1.5" in sel and total_goals >= 2:
         return True
 
     return False
+
+def calculate_next_progression(history):
+    """
+    Simuluje stavový automat progrese napříč historií vyhodnocených tiketů.
+    Kroky:
+      K1: Vklad 1000 Kč
+      K2: Vklad 1000 Kč (čistý zisk z K1)
+      K3: Vklad 2000 Kč (celá výhra z K2) -> uzamčení +4000 Kč při výhře
+      K4: Vklad 1000 Kč (polovina výhry z K2) -> reset na K1
+    """
+    evaluated = [t for t in history if t.get("status") in ["won", "lost"]]
+    step = 1
+    total_bank_profit = 0
+
+    for t in evaluated:
+        won = (t["status"] == "won")
+
+        if step == 1:
+            if won:
+                step = 2
+            else:
+                total_bank_profit -= BASE_STAKE
+                step = 1
+        elif step == 2:
+            if won:
+                step = 3
+            else:
+                step = 1
+        elif step == 3:
+            if won:
+                total_bank_profit += 4000
+                step = 4
+            else:
+                step = 1
+        elif step == 4:
+            if won:
+                total_bank_profit += 1000
+                step = 1
+            else:
+                total_bank_profit -= 1000
+                step = 1
+
+    # Výpočet pro nadcházející tiket
+    stakes = {1: 1000, 2: 1000, 3: 2000, 4: 1000}
+    descriptions = {
+        1: "Krok 1/4 (Vlastní vklad 1 000 Kč)",
+        2: "Krok 2/4 (Hra za čistý zisk 1 000 Kč z K1 – bez rizika)",
+        3: "Krok 3/4 (Hra za celou výhru 2 000 Kč z K2 – útok na zisk)",
+        4: "Krok 4/4 (Jistící sázka 1 000 Kč – zisk +3 000 Kč už je v bezpečí)"
+    }
+
+    return step, stakes[step], descriptions[step], total_bank_profit
 
 def send_telegram(message):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -78,14 +129,17 @@ def send_telegram(message):
         "text": message,
         "parse_mode": "Markdown"
     }
-    requests.post(url, json=payload)
+    try:
+        requests.post(url, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Chyba při odesílání na Telegram: {e}")
 
 def evaluate_pending_tickets():
     if not os.path.exists(HISTORY_FILE):
         print("Soubor historie neexistuje.")
         return
 
-    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+    with open(HISTORY_FILE, "r", encoding="utf-8-sig") as f:
         history = json.load(f)
 
     pending_tickets = [t for t in history if t.get("status") == "pending"]
@@ -117,7 +171,7 @@ def evaluate_pending_tickets():
 
             if status != "FINISHED":
                 all_finished = False
-                status_label = status if status else "NENALEZENO / JEŠTĚ NEHRÁNO"
+                status_label = status if status else "NENALEZENO / NEODEHRÁNO"
                 details.append(f"⏳ {match_name}: {status_label}")
                 continue
 
@@ -132,33 +186,35 @@ def evaluate_pending_tickets():
             t["status"] = "won" if ticket_won else "lost"
             t["evaluation_detail"] = " | ".join(details)
             updated_any = True
-            
+
+            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+                json.dump(history, f, ensure_ascii=False, indent=2)
+
+            # Spočítáme stav progrese po započtení tohoto tiketu
+            next_step, next_stake, step_desc, bank_profit = calculate_next_progression(history)
+
             hdr = "🎉 *VEČERNÍ VYHODNOCENÍ: TIKET VYHRÁL!*" if ticket_won else "💀 *VEČERNÍ VYHODNOCENÍ: TIKET PROHRÁL*"
-            msg = f"{hdr}\n\n" + "\n".join(details) + f"\n\n📊 *Kurz:* `{t.get('total_odds')}`"
+            sign = "+" if bank_profit >= 0 else ""
+
+            msg = (
+                f"{hdr}\n\n"
+                f"{chr(10).join(details)}\n\n"
+                f"📊 *Kurz tiketu:* `{t.get('total_odds')}`\n"
+                f"------------------------------------\n"
+                f"🎯 *STAV SÁZKOVÉ PROGRESE:*\n"
+                f"• Příští krok: *{step_desc}*\n"
+                f"• Doporučená sázka zítra: *{next_stake:,} Kč*\n"
+                f"• Celkový zisk strategie: *{sign}{bank_profit:,} Kč*"
+            )
             send_telegram(msg)
             print(f"Tiket ID {t['id']} uzavřen: {t['status']}")
+            print(f"Příští sázka: {next_stake} Kč ({step_desc})")
         else:
             print(f"Tiket ID {t['id']} zatím nelze uzavřít (zápasy ještě nebyly odehrány).")
 
     if updated_any:
         with open(HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(history, f, ensure_ascii=False, indent=2)
-
-    total_eval = [t for t in history if t.get("status") in ["won", "lost"]]
-    w = sum(1 for t in total_eval if t["status"] == "won")
-    l = sum(1 for t in total_eval if t["status"] == "lost")
-    profit = sum(float(t.get("total_odds", 2.0)) - 1.0 for t in total_eval if t["status"] == "won") - l
-    roi = (profit / len(total_eval) * 100) if total_eval else 0.0
-
-    print("\n" + "="*40)
-    print("      AKTUÁLNÍ CELKOVÁ BILANCE")
-    print("="*40)
-    print(f"Vyhodnoceno : {len(total_eval)}")
-    print(f"Bilance     : {w}W - {l}L")
-    sign = "+" if profit >= 0 else ""
-    print(f"Zisk (1u)   : {sign}{profit:.2f} u")
-    print(f"ROI         : {sign}{roi:.1f} %")
-    print("="*40)
 
 if __name__ == "__main__":
     evaluate_pending_tickets()
