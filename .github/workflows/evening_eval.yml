@@ -1,0 +1,42 @@
+name: Evening Results Evaluation
+
+on:
+  schedule:
+    # 22:00 UTC = 23:00 SEČ
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  evaluate-results:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Stáhnout repozitář
+        uses: actions/checkout@v4
+
+      - name: Nastavit Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Nainstalovat závislosti
+        run: |
+          pip install requests openai python-dotenv
+
+      - name: Spustit vyhodnocení výsledků
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python evaluate_results.py
+
+      - name: Zapsat aktualizované výsledky do repozitáře
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add tickets_history.json
+          git commit -m "Auto: večerní vyhodnocení tiketů [skip ci]" || exit 0
+          git push
