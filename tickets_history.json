@@ -1,0 +1,25 @@
+[
+  {
+    "id": 1,
+    "date": "2026-11-08 10:08",
+    "total_odds": 2.03,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "Barcelona vs Almería",
+        "league": "La Liga",
+        "selection": "Výhra domácích",
+        "odds": 1.4,
+        "confidence_reason": "Barcelona je silný domácí favorit s vynikajícím rekordem proti slabším soupeřům, Almería má slabou defenzivu."
+      },
+      {
+        "match": "Bayern München vs Heidenheim",
+        "league": "Bundesliga",
+        "selection": "Výhra domácích",
+        "odds": 1.45,
+        "confidence_reason": "Bayern je dominantní na domácím stadionu, Heidenheim je středopolem tabulky a často prohrává s velkými týmy."
+      }
+    ],
+    "summary": "Konzervativní tiket na dva silné domácí favority s dobrým poměrem rizika a výnosu. Celkový kurz splňuje požadovaný rozsah."
+  }
+]
