@@ -81,5 +81,28 @@
       }
     ],
     "summary": "Kombinace tří sázek na Over 1.5 omezuje závislost na přesném vítězi, ale tiket stále nese běžné kumulované riziko. Kurzy jsou orientační odhady, nikoli ověřené živé nabídky; ověřte také aktuální termíny a dostupnost zápasů."
+  },
+  {
+    "id": 4,
+    "date": "2026-11-08 11:47",
+    "total_odds": 1.99,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "Manchester United FC vs Aston Villa FC",
+        "league": "Premier League",
+        "selection": "Over 1.5",
+        "odds": 1.4,
+        "confidence_reason": "Dva ofenzivně kvalitní týmy dávají sázce na alespoň dva góly konzervativnější profil než tip na vítěze."
+      },
+      {
+        "match": "Club Atlético de Madrid vs FC Barcelona",
+        "league": "Primera Division",
+        "selection": "Over 1.5",
+        "odds": 1.42,
+        "confidence_reason": "Kvalita útoku na obou stranách podporuje možnost alespoň dvou branek, přestože výsledek utkání je nejistý."
+      }
+    ],
+    "summary": "Tiket obsahuje přesně dva výběry Over 1.5 a vyhýbá se tipům na vítěze ve vyrovnaných špičkových zápasech. Uvedené kurzy jsou orientační; bez aktuálních kurzů a ověření sestav nelze jejich dostupnost zaručit."
   }
 ]
