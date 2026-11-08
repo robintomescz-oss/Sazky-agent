@@ -69,12 +69,11 @@ def evaluate_selection(selection, home_goals, away_goals):
 
 def calculate_next_progression(history):
     """
-    Simuluje stavový automat progrese napříč historií vyhodnocených tiketů.
-    Kroky:
-      K1: Vklad 1000 Kč
-      K2: Vklad 1000 Kč (čistý zisk z K1)
-      K3: Vklad 2000 Kč (celá výhra z K2) -> uzamčení +4000 Kč při výhře
-      K4: Vklad 1000 Kč (polovina výhry z K2) -> reset na K1
+    Stavový automat progrese s pojistkou v Kroku 2:
+      K1: Vklad 1 000 Kč (z vlastní kapsy)
+      K2: Vklad 500 Kč (500 Kč zisku z K1 uzamčeno do banku)
+      K3: Vklad 1 000 Kč (výhra z K2) -> uzamčení dalších +2 000 Kč při výhře
+      K4: Vklad 1 000 Kč (jistící sázka) -> reset na K1
     """
     evaluated = [t for t in history if t.get("status") in ["won", "lost"]]
     step = 1
@@ -85,6 +84,7 @@ def calculate_next_progression(history):
 
         if step == 1:
             if won:
+                total_bank_profit += 500  # Okamžité uzamčení poloviny čistého zisku
                 step = 2
             else:
                 total_bank_profit -= BASE_STAKE
@@ -93,10 +93,11 @@ def calculate_next_progression(history):
             if won:
                 step = 3
             else:
+                # 500 Kč z K1 zůstalo trvale v banku
                 step = 1
         elif step == 3:
             if won:
-                total_bank_profit += 4000
+                total_bank_profit += 2000  # Další uzamčení zisku do banku
                 step = 4
             else:
                 step = 1
@@ -108,13 +109,12 @@ def calculate_next_progression(history):
                 total_bank_profit -= 1000
                 step = 1
 
-    # Výpočet pro nadcházející tiket
-    stakes = {1: 1000, 2: 1000, 3: 2000, 4: 1000}
+    stakes = {1: 1000, 2: 500, 3: 1000, 4: 1000}
     descriptions = {
         1: "Krok 1/4 (Vlastní vklad 1 000 Kč)",
-        2: "Krok 2/4 (Hra za čistý zisk 1 000 Kč z K1 – bez rizika)",
-        3: "Krok 3/4 (Hra za celou výhru 2 000 Kč z K2 – útok na zisk)",
-        4: "Krok 4/4 (Jistící sázka 1 000 Kč – zisk +3 000 Kč už je v bezpečí)"
+        2: "Krok 2/4 (Pojistka 500 Kč – 500 Kč z K1 je již bezpečně v banku)",
+        3: "Krok 3/4 (Hra za výhru 1 000 Kč z K2 – útok na zisk)",
+        4: "Krok 4/4 (Jistící sázka 1 000 Kč – zisk cyklu je v bezpečí)"
     }
 
     return step, stakes[step], descriptions[step], total_bank_profit
@@ -190,7 +190,6 @@ def evaluate_pending_tickets():
             with open(HISTORY_FILE, "w", encoding="utf-8") as f:
                 json.dump(history, f, ensure_ascii=False, indent=2)
 
-            # Spočítáme stav progrese po započtení tohoto tiketu
             next_step, next_stake, step_desc, bank_profit = calculate_next_progression(history)
 
             hdr = "🎉 *VEČERNÍ VYHODNOCENÍ: TIKET VYHRÁL!*" if ticket_won else "💀 *VEČERNÍ VYHODNOCENÍ: TIKET PROHRÁL*"
