@@ -10,7 +10,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 FOOTBALL_DATA_API_KEY = os.getenv("FOOTBALL_DATA_API_KEY")
 HISTORY_FILE = "tickets_history.json"
-BASE_STAKE = 1000  # Základní vklad v Kč pro Krok 1
+BASE_STAKE = 1000.0  # Základní vklad v Kč pro Krok 1
 
 def fetch_api_matches():
     """Stáhne aktuální výsledky zápasů z football-data.org."""
@@ -69,55 +69,82 @@ def evaluate_selection(selection, home_goals, away_goals):
 
 def calculate_next_progression(history):
     """
-    Stavový automat progrese s pojistkou v Kroku 2:
-      K1: Vklad 1 000 Kč (z vlastní kapsy)
-      K2: Vklad 500 Kč (500 Kč zisku z K1 uzamčeno do banku)
-      K3: Vklad 1 000 Kč (výhra z K2) -> uzamčení dalších +2 000 Kč při výhře
-      K4: Vklad 1 000 Kč (jistící sázka) -> reset na K1
+    Deterministický stavový automat s REÁLNÝMI kurzy tiketů a pojistkou v Kroku 2:
+      K1: Vklad 1 000 Kč (z kapsy). Výhra -> uzamkne 50 % čistého zisku (1000 * (odds - 1) / 2)
+      K2: Vklad = zbylých 50 % čistého zisku z K1. Výhra -> celá výplata (stake * odds) do K3
+      K3: Vklad = výhra z K2. Výhra -> celá výplata uzamčena do banku, 50 % výhry z K2 jde do K4
+      K4: Jistící sázka. Výhra -> zisk přičten k banku, konec cyklu -> reset na K1
     """
     evaluated = [t for t in history if t.get("status") in ["won", "lost"]]
     step = 1
-    total_bank_profit = 0
+    total_bank_profit = 0.0
+
+    next_stake = BASE_STAKE
+    k2_payout = 0.0
 
     for t in evaluated:
         won = (t["status"] == "won")
+        try:
+            odds = float(t.get("total_odds", 2.0))
+        except (ValueError, TypeError):
+            odds = 2.0
 
         if step == 1:
+            stake = BASE_STAKE
             if won:
-                total_bank_profit += 500  # Okamžité uzamčení poloviny čistého zisku
+                net_profit = stake * (odds - 1.0)
+                saved_profit = round(net_profit / 2.0, 2)
+                total_bank_profit += saved_profit
+                next_stake = round(net_profit / 2.0, 2)
                 step = 2
             else:
-                total_bank_profit -= BASE_STAKE
+                total_bank_profit -= stake
+                next_stake = BASE_STAKE
                 step = 1
+
         elif step == 2:
+            stake = next_stake
             if won:
+                k2_payout = round(stake * odds, 2)
+                next_stake = k2_payout
                 step = 3
             else:
-                # 500 Kč z K1 zůstalo trvale v banku
+                next_stake = BASE_STAKE
                 step = 1
+
         elif step == 3:
+            stake = next_stake
             if won:
-                total_bank_profit += 2000  # Další uzamčení zisku do banku
+                k3_payout = round(stake * odds, 2)
+                total_bank_profit += k3_payout
+                next_stake = round(k2_payout / 2.0, 2)
                 step = 4
             else:
+                next_stake = BASE_STAKE
                 step = 1
+
         elif step == 4:
+            stake = next_stake
             if won:
-                total_bank_profit += 1000
-                step = 1
+                net_profit = round(stake * (odds - 1.0), 2)
+                total_bank_profit += net_profit
             else:
-                total_bank_profit -= 1000
-                step = 1
+                total_bank_profit -= stake
+            next_stake = BASE_STAKE
+            step = 1
 
-    stakes = {1: 1000, 2: 500, 3: 1000, 4: 1000}
-    descriptions = {
-        1: "Krok 1/4 (Vlastní vklad 1 000 Kč)",
-        2: "Krok 2/4 (Pojistka 500 Kč – 500 Kč z K1 je již bezpečně v banku)",
-        3: "Krok 3/4 (Hra za výhru 1 000 Kč z K2 – útok na zisk)",
-        4: "Krok 4/4 (Jistící sázka 1 000 Kč – zisk cyklu je v bezpečí)"
-    }
+    # Formátování výstupu pro následující tiket
+    rounded_stake = int(round(next_stake))
+    if step == 1:
+        desc = "Krok 1/4 (Základní vklad 1 000 Kč z vlastní kapsy)"
+    elif step == 2:
+        desc = f"Krok 2/4 (Pojistka {rounded_stake} Kč – reálných 50 % zisku z K1)"
+    elif step == 3:
+        desc = f"Krok 3/4 (Sázka {rounded_stake} Kč – reálná celá výhra z K2)"
+    elif step == 4:
+        desc = f"Krok 4/4 (Jistící sázka {rounded_stake} Kč – reálných 50 % z K2)"
 
-    return step, stakes[step], descriptions[step], total_bank_profit
+    return step, rounded_stake, desc, int(round(total_bank_profit))
 
 def send_telegram(message):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -198,16 +225,16 @@ def evaluate_pending_tickets():
             msg = (
                 f"{hdr}\n\n"
                 f"{chr(10).join(details)}\n\n"
-                f"📊 *Kurz tiketu:* `{t.get('total_odds')}`\n"
+                f"📊 *Reálný kurz tiketu:* `{t.get('total_odds')}`\n"
                 f"------------------------------------\n"
-                f"🎯 *STAV SÁZKOVÉ PROGRESE:*\n"
+                f"🎯 *DYNAMICKÁ STAKINGOVÁ PROGRESE:*\n"
                 f"• Příští krok: *{step_desc}*\n"
                 f"• Doporučená sázka zítra: *{next_stake:,} Kč*\n"
-                f"• Celkový zisk strategie: *{sign}{bank_profit:,} Kč*"
+                f"• Skutečný zisk strategie: *{sign}{bank_profit:,} Kč*"
             )
             send_telegram(msg)
             print(f"Tiket ID {t['id']} uzavřen: {t['status']}")
-            print(f"Příští sázka: {next_stake} Kč ({step_desc})")
+            print(f"Příští sázka: {next_stake} Kč ({step_desc}) | Celková bilance: {bank_profit} Kč")
         else:
             print(f"Tiket ID {t['id']} zatím nelze uzavřít (zápasy ještě nebyly odehrány).")
 
