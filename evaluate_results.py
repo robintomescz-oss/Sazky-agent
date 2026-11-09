@@ -1,7 +1,7 @@
-﻿import os
+import os
 import json
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,10 +13,10 @@ HISTORY_FILE = "tickets_history.json"
 BASE_STAKE = 1000.0  # Základní vklad v Kč pro Krok 1
 
 def fetch_api_matches():
-    """Stáhne aktuální výsledky zápasů z football-data.org."""
+    """Stáhne aktuální výsledky zápasů za včerejšek i dnešek z football-data.org."""
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-today = datetime.now().strftime("%Y-%m-%d")
-url = f"https://api.football-data.org/v4/matches?dateFrom={yesterday}&dateTo={today}"
+    today = datetime.now().strftime("%Y-%m-%d")
+    url = f"https://api.football-data.org/v4/matches?dateFrom={yesterday}&dateTo={today}"
 
     headers = {"X-Auth-Token": FOOTBALL_DATA_API_KEY.strip()} if FOOTBALL_DATA_API_KEY else {}
     try:
@@ -247,3 +247,4 @@ def evaluate_pending_tickets():
 
 if __name__ == "__main__":
     evaluate_pending_tickets()
+        
