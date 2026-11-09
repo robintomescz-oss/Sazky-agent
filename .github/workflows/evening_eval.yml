@@ -34,7 +34,6 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python evaluate_results.py
 
-      -  main
       - name: Zapsat aktualizované výsledky do repozitáře
         run: |
           git config --global user.name "github-actions[bot]"
