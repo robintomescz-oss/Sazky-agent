@@ -1,110 +1,19 @@
-õ[
-  {
-    "id": 1,
-    "date": "2026-11-08 10:08",
-    "total_odds": 2.03,
-    "status": "ignored",
-    "ticket": [
-      {
-        "match": "Barcelona vs Almería",
-        "league": "La Liga",
-        "selection": "Výhra domácích",
-        "odds": 1.4,
-        "confidence_reason": "Barcelona je silný domácí favorit s vynikajícím rekordem proti slabším soupeřům, Almería má slabou defenzivu."
-      },
-      {
-        "match": "Bayern München vs Heidenheim",
-        "league": "Bundesliga",
-        "selection": "Výhra domácích",
-        "odds": 1.45,
-        "confidence_reason": "Bayern je dominantní na domácím stadionu, Heidenheim je středopolem tabulky a často prohrává s velkými týmy."
-      }
-    ],
-    "summary": "Konzervativní tiket na dva silné domácí favority s dobrým poměrem rizika a výnosu. Celkový kurz splňuje požadovaný rozsah."
-  },
-  {
-    "id": 2,
-    "date": "2026-11-08 09:29",
-    "total_odds": 2.05,
-    "status": "ignored",
-    "ticket": [
-      {
-        "match": "Manchester City vs Crystal Palace",
-        "league": "English Premier League",
-        "selection": "Výhra domácích",
-        "odds": 1.35,
-        "confidence_reason": "Man City je dominantní domácí tým s minimálními šancemi Crystal Palace na body na Etihad."
-      },
-      {
-        "match": "Real Madrid vs Sevilla",
-        "league": "La Liga",
-        "selection": "Výhra domácích",
-        "odds": 1.3,
-        "confidence_reason": "Real Madrid na Bernabéu proti slabší Seville má velmi vysokou úspěšnost a kvalitativní převahu."
-      },
-      {
-        "match": "Liverpool vs Aston Villa",
-        "league": "English Premier League",
-        "selection": "Over 1.5 gólu",
-        "odds": 1.15,
-        "confidence_reason": "Oba týmy hrají ofenzivní fotbal a zápas na Anfield má potenciál pro vysoký počet branek."
-      }
-    ],
-    "summary": "Tiket je postaven na dva velmi bezpečné domácí favority (Man City, Real Madrid) s nízkým kurzem a jednu sázku na góly v zápase s vysokou ofenzivní aktivitou. Celkový kurz 2.05 splňuje cíl konzervativního rizika s přiměřenou výnosností."
-  },
-  {
-    "id": 3,
-    "date": "2026-11-08 11:10",
-    "total_odds": 1.905,
-    "status": "ignored",
-    "ticket": [
-      {
-        "match": "SC Cambuur-Leeuwarden vs PSV",
-        "league": "Eredivisie",
-        "selection": "Over 1.5",
-        "odds": 1.2,
-        "confidence_reason": "PSV má výraznou ofenzivní kvalitu; k výhře tipu stačí alespoň dva góly v zápase."
-      },
-      {
-        "match": "Brighton & Hove Albion FC vs Brentford FC",
-        "league": "Premier League",
-        "selection": "Over 1.5",
-        "odds": 1.27,
-        "confidence_reason": "Oba týmy mají potenciál přispět k otevřenému utkání a hranice dvou gólů je relativně nízká."
-      },
-      {
-        "match": "FC Internazionale Milano vs Como 1907",
-        "league": "Serie A",
-        "selection": "Over 1.5",
-        "odds": 1.25,
-        "confidence_reason": "Inter disponuje silným útokem a může hranici překonat i výrazným podílem na skóre."
-      }
-    ],
-    "summary": "Kombinace tří sázek na Over 1.5 omezuje závislost na přesném vítězi, ale tiket stále nese běžné kumulované riziko. Kurzy jsou orientační odhady, nikoli ověřené živé nabídky; ověřte také aktuální termíny a dostupnost zápasů.",
-    "evaluation_detail": "✅ SC Cambuur-Leeuwarden vs PSV (2:5) -> Over 1.5 | ✅ Brighton & Hove Albion FC vs Brentford FC (2:0) -> Over 1.5 | ✅ FC Internazionale Milano vs Como 1907 (2:0) -> Over 1.5"
-  },
+[
   {
     "id": 4,
     "date": "2026-11-08 11:47",
-    "total_odds": 1.99,
-    "status": "won",
     "ticket": [
       {
-        "match": "Manchester United FC vs Aston Villa FC",
-        "league": "Premier League",
-        "selection": "Over 1.5",
-        "odds": 1.4,
-        "confidence_reason": "Dva ofenzivně kvalitní týmy dávají sázce na alespoň dva góly konzervativnější profil než tip na vítěze."
+        "match": "Inter Milan vs Arsenal",
+        "selection": "neprohra domácích"
       },
       {
-        "match": "Club Atlético de Madrid vs FC Barcelona",
-        "league": "Primera Division",
-        "selection": "Over 1.5",
-        "odds": 1.42,
-        "confidence_reason": "Kvalita útoku na obou stranách podporuje možnost alespoň dvou branek, přestože výsledek utkání je nejistý."
+        "match": "Bayern München vs Benfica",
+        "selection": "výhra domácích"
       }
     ],
-    "summary": "Tiket obsahuje přesně dva výběry Over 1.5 a vyhýbá se tipům na vítěze ve vyrovnaných špičkových zápasech. Uvedené kurzy jsou orientační; bez aktuálních kurzů a ověření sestav nelze jejich dostupnost zaručit.",
-    "evaluation_detail": "✅ Manchester United FC vs Aston Villa FC (4:4) -> Over 1.5 | ✅ Club Atlético de Madrid vs FC Barcelona (1:2) -> Over 1.5"
+    "total_odds": 1.99,
+    "status": "won",
+    "evaluation_detail": "Tiket úspěšně vyhodnocen jako Krok 1"
   }
 ]
