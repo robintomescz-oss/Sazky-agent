@@ -56,7 +56,7 @@
     "id": 3,
     "date": "2026-11-08 11:10",
     "total_odds": 1.905,
-    "status": "pending",
+    "status": "won",
     "ticket": [
       {
         "match": "SC Cambuur-Leeuwarden vs PSV",
@@ -80,13 +80,14 @@
         "confidence_reason": "Inter disponuje silným útokem a může hranici překonat i výrazným podílem na skóre."
       }
     ],
-    "summary": "Kombinace tří sázek na Over 1.5 omezuje závislost na přesném vítězi, ale tiket stále nese běžné kumulované riziko. Kurzy jsou orientační odhady, nikoli ověřené živé nabídky; ověřte také aktuální termíny a dostupnost zápasů."
+    "summary": "Kombinace tří sázek na Over 1.5 omezuje závislost na přesném vítězi, ale tiket stále nese běžné kumulované riziko. Kurzy jsou orientační odhady, nikoli ověřené živé nabídky; ověřte také aktuální termíny a dostupnost zápasů.",
+    "evaluation_detail": "✅ SC Cambuur-Leeuwarden vs PSV (2:5) -> Over 1.5 | ✅ Brighton & Hove Albion FC vs Brentford FC (2:0) -> Over 1.5 | ✅ FC Internazionale Milano vs Como 1907 (2:0) -> Over 1.5"
   },
   {
     "id": 4,
     "date": "2026-11-08 11:47",
     "total_odds": 1.99,
-    "status": "pending",
+    "status": "won",
     "ticket": [
       {
         "match": "Manchester United FC vs Aston Villa FC",
@@ -103,6 +104,7 @@
         "confidence_reason": "Kvalita útoku na obou stranách podporuje možnost alespoň dvou branek, přestože výsledek utkání je nejistý."
       }
     ],
-    "summary": "Tiket obsahuje přesně dva výběry Over 1.5 a vyhýbá se tipům na vítěze ve vyrovnaných špičkových zápasech. Uvedené kurzy jsou orientační; bez aktuálních kurzů a ověření sestav nelze jejich dostupnost zaručit."
+    "summary": "Tiket obsahuje přesně dva výběry Over 1.5 a vyhýbá se tipům na vítěze ve vyrovnaných špičkových zápasech. Uvedené kurzy jsou orientační; bez aktuálních kurzů a ověření sestav nelze jejich dostupnost zaručit.",
+    "evaluation_detail": "✅ Manchester United FC vs Aston Villa FC (4:4) -> Over 1.5 | ✅ Club Atlético de Madrid vs FC Barcelona (1:2) -> Over 1.5"
   }
 ]
