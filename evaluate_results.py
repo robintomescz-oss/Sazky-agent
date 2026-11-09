@@ -14,7 +14,10 @@ BASE_STAKE = 1000.0  # Základní vklad v Kč pro Krok 1
 
 def fetch_api_matches():
     """Stáhne aktuální výsledky zápasů z football-data.org."""
-    url = "https://api.football-data.org/v4/matches"
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+today = datetime.now().strftime("%Y-%m-%d")
+url = f"https://api.football-data.org/v4/matches?dateFrom={yesterday}&dateTo={today}"
+
     headers = {"X-Auth-Token": FOOTBALL_DATA_API_KEY.strip()} if FOOTBALL_DATA_API_KEY else {}
     try:
         res = requests.get(url, headers=headers, timeout=10)
