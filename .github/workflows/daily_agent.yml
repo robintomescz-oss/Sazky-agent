@@ -24,7 +24,8 @@ jobs:
 
       - name: Nainstalovat závislosti
         run: |
-          pip install requests openai python-dotenv
+          pip install requests python-dotenv openai json-repair
+
 
       - name: Spustit sázkového agenta
         env:
