@@ -15,5 +15,28 @@
     "total_odds": 1.99,
     "status": "won",
     "evaluation_detail": "Tiket úspěšně vyhodnocen jako Krok 1"
+  },
+  {
+    "id": 5,
+    "date": "2026-11-16 16:08",
+    "total_odds": 1.96,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "CR Flamengo vs CA Paranaense",
+        "league": "Campeonato Brasileiro Série A",
+        "selection": "Over 1.5",
+        "odds": 1.4,
+        "confidence_reason": "Gólová hranice vyžaduje pouze dva góly a je konzervativnější než tipovat vítěze."
+      },
+      {
+        "match": "Cruzeiro EC vs SE Palmeiras",
+        "league": "Campeonato Brasileiro Série A",
+        "selection": "Over 1.5",
+        "odds": 1.4,
+        "confidence_reason": "Nízká gólová hranice omezuje riziko oproti sázce na výsledek vyrovnaného utkání."
+      }
+    ],
+    "summary": "Dvě konzervativní volby na Over 1.5; uvedené kurzy jsou orientační odhady, nikoli ověřené aktuální nabídky."
   }
 ]
