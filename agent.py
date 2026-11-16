@@ -36,35 +36,71 @@ def parse_and_repair_json(text):
     raise ValueError("Nepodařilo se extrahovat platný JSON objekt.")
 
 
+def fetch_espn_fallback_matches():
+    """Záložní zdroj rozpisu zápasů přes veřejné ESPN API (pokryje i repre pauzy)."""
+    matches = []
+    # Hlavní repre i klubové soutěže na ESPN
+    endpoints = [
+        ("UEFA Nations League", "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.nations/scoreboard"),
+        ("FIFA World Cup Qualifiers", "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.worldq.uefa/scoreboard"),
+        ("Mezinárodní přátelské zápasy", "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.friendly/scoreboard"),
+        ("English Championship", "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.2/scoreboard"),
+        ("Premier League", "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard"),
+        ("La Liga", "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/scoreboard"),
+        ("Serie A", "https://site.api.espn.com/apis/site/v2/sports/soccer/ita.1/scoreboard"),
+        ("Bundesliga", "https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1/scoreboard"),
+    ]
+
+    for league_name, url in endpoints:
+        try:
+            res = requests.get(url, timeout=8)
+            if res.status_code != 200:
+                continue
+            events = res.json().get("events", [])
+            for ev in events:
+                status_state = ev.get("status", {}).get("type", {}).get("state", "")
+                # Bereme pouze ještě neodehrané zápasy ('pre')
+                if status_state != "pre":
+                    continue
+                competitions = ev.get("competitions", [])
+                if not competitions:
+                    continue
+                competitors = competitions[0].get("competitors", [])
+                if len(competitors) != 2:
+                    continue
+
+                home = next((c["team"]["displayName"] for c in competitors if c.get("homeAway") == "home"), competitors[0]["team"]["displayName"])
+                away = next((c["team"]["displayName"] for c in competitors if c.get("homeAway") == "away"), competitors[1]["team"]["displayName"])
+
+                matches.append({
+                    "home": home,
+                    "away": away,
+                    "league": league_name,
+                    "utcDate": ev.get("date", "")[:16].replace("T", " "),
+                    "status": "SCHEDULED"
+                })
+        except Exception:
+            continue
+
+    return matches
+
+
 def fetch_today_matches():
-    """Stáhne zápasy pro dnešek a nejbližší 2 dny z football-data.org."""
+    """Stáhne zápasy z football-data.org a v případě prázdného rozpisu použije ESPN zálohu."""
     today = datetime.now().strftime("%Y-%m-%d")
-    day_plus_2 = (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d")
-    url = f"https://api.football-data.org/v4/matches?dateFrom={today}&dateTo={day_plus_2}"
+    day_plus_3 = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d")
+    url = f"https://api.football-data.org/v4/matches?dateFrom={today}&dateTo={day_plus_3}"
     headers = {"X-Auth-Token": FOOTBALL_DATA_API_KEY.strip()} if FOOTBALL_DATA_API_KEY else {}
 
+    matches = []
     try:
         res = requests.get(url, headers=headers, timeout=10)
-        if res.status_code != 200:
-            print(f"Chyba při stahování zápasů ({res.status_code}): {res.text}")
-            return []
-
-        data = res.json()
-        raw_matches = data.get("matches", [])
-
-        # Rozšířený seznam soutěží včetně repre (EC, WC) a Championship (ELC)
-        allowed_competitions = {
-            "PL", "PD", "BL1", "SA", "FL1", "DED", "PPL",
-            "CL", "EL", "EC", "WC", "ELC", "BSA"
-        }
-        matches = []
-
-        # Nejprve vezmeme zápasy z prioritních soutěží (pouze neodehrané)
-        for m in raw_matches:
-            if m.get("status") not in ["SCHEDULED", "TIMED"]:
-                continue
-            comp_code = m.get("competition", {}).get("code")
-            if comp_code in allowed_competitions:
+        if res.status_code == 200:
+            raw_matches = res.json().get("matches", [])
+            print(f"football-data.org vrátilo celkem {len(raw_matches)} zápasů.")
+            for m in raw_matches:
+                if m.get("status") not in ["SCHEDULED", "TIMED"]:
+                    continue
                 matches.append({
                     "home": m["homeTeam"]["name"],
                     "away": m["awayTeam"]["name"],
@@ -72,30 +108,23 @@ def fetch_today_matches():
                     "utcDate": m.get("utcDate", "")[:16].replace("T", " "),
                     "status": m.get("status")
                 })
-
-        # Záložní fallback: pokud v hlavních soutěžích nejsou alespoň 4 zápasy, vezmeme vše dostupné v API
-        if len(matches) < 4 and raw_matches:
-            seen = {(x["home"], x["away"]) for x in matches}
-            for m in raw_matches:
-                if m.get("status") not in ["SCHEDULED", "TIMED"]:
-                    continue
-                pair = (m["homeTeam"]["name"], m["awayTeam"]["name"])
-                if pair not in seen:
-                    matches.append({
-                        "home": m["homeTeam"]["name"],
-                        "away": m["awayTeam"]["name"],
-                        "league": m.get("competition", {}).get("name", "Fotbal"),
-                        "utcDate": m.get("utcDate", "")[:16].replace("T", " "),
-                        "status": m.get("status")
-                    })
-                    seen.add(pair)
-                if len(matches) >= 15:
-                    break
-
-        return matches[:20]
+        else:
+            print(f"football-data.org status {res.status_code}: {res.text}")
     except Exception as e:
-        print(f"Výjimka při stahování zápasů: {e}")
-        return []
+        print(f"Výjimka při stahování z football-data.org: {e}")
+
+    # Pokud primární API vrátilo méně než 4 zápasy (typicky repre pauza), doplníme z ESPN
+    if len(matches) < 4:
+        print("Primární API má málo zápasů (pravděpodobně repre pauza), stahuji záložní rozpis z ESPN...")
+        espn_matches = fetch_espn_fallback_matches()
+        print(f"ESPN záloha našla {len(espn_matches)} nadcházejících zápasů.")
+        seen = {(x["home"], x["away"]) for x in matches}
+        for em in espn_matches:
+            if (em["home"], em["away"]) not in seen:
+                matches.append(em)
+                seen.add((em["home"], em["away"]))
+
+    return matches[:20]
 
 
 def get_current_stake_info():
@@ -217,16 +246,15 @@ def ask_openrouter(system_prompt, user_prompt):
 def generate_ticket(matches):
     today = datetime.now().strftime("%Y-%m-%d")
 
-    # Pro Double AKU stačí minimálně 2 dostupné zápasy
     if not matches or len(matches) < 2:
-        print("V nejbližších 48 hodinách není v API dostatek zápasů ani pro Double AKU.")
+        print("Ani v záložních zdrojích není dostatek zápasů pro Double AKU.")
         return None
 
     system_prompt = "Jsi konzervativní sportovní analytik zaměřený na fotbal. Odpovídej výhradně ve validním formátu JSON."
     user_prompt = f"""
 Dnešní datum je: {today}.
 
-Zde je seznam dostupných reálných zápasů pro dnešek a nejbližší dny:
+Zde je seznam dostupných reálných zápasů:
 {json.dumps(matches, ensure_ascii=False, indent=2)}
 
 Sestav AKU tiket PŘÍSNĚ ZE 2 NEJBEZPEČNĚJŠÍCH ZÁPASŮ (žádný třetí zápas):
@@ -303,7 +331,7 @@ def send_telegram(ticket_data):
     step, stake, step_desc = get_current_stake_info()
 
     if not ticket_data or not ticket_data.get("ticket"):
-        message = "ℹ️ *Ani v nejbližších 48 hodinách není v API dostatek zápasů pro bezpečný tiket.*"
+        message = "ℹ️ *V API ani v ESPN záloze teď nejsou žádné nadcházející zápasy pro bezpečný tiket.*"
     else:
         lines = ["🎯 *Fotbalový Double AKU tiket (Cíl ~2.00)*\n"]
         for idx, item in enumerate(ticket_data["ticket"], 1):
@@ -327,9 +355,9 @@ def send_telegram(ticket_data):
 
 
 if __name__ == "__main__":
-    print("1/4 Stahuji rozpis zápasů (dnes + 2 dny)...")
+    print("1/4 Stahuji rozpis zápasů...")
     matches = fetch_today_matches()
-    print(f"Nalezeno {len(matches)} dostupných zápasů.")
+    print(f"Celkem nalezeno {len(matches)} nadcházejících zápasů.")
 
     print("2/4 Analyzuji nabídku a sestavuji tiket...")
     ticket = generate_ticket(matches)
