@@ -1,7 +1,7 @@
 import os
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 from dotenv import load_dotenv
 from json_repair import repair_json
@@ -15,17 +15,17 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 FOOTBALL_DATA_API_KEY = os.getenv("FOOTBALL_DATA_API_KEY")
 HISTORY_FILE = "tickets_history.json"
+BASE_STAKE = 1000.0
 
-# Inicializace klienta OpenRouter
 openrouter_client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=OPENROUTER_API_KEY,
 ) if OPENROUTER_API_KEY else None
 
+
 def parse_and_repair_json(text):
     """Bezpečně extrahuje a opraví JSON z odpovědi modelu."""
     try:
-        # Hledáme první { a poslední }
         match = re.search(r"\{.*\}", text, re.DOTALL)
         raw_json_str = match.group(0) if match else text
         repaired = repair_json(raw_json_str, return_objects=True)
@@ -35,9 +35,12 @@ def parse_and_repair_json(text):
         print(f"Chyba při opravě JSON: {e}")
     raise ValueError("Nepodařilo se extrahovat platný JSON objekt.")
 
+
 def fetch_today_matches():
-    """Stáhne dnešní zápasy z football-data.org."""
-    url = "https://api.football-data.org/v4/matches"
+    """Stáhne zápasy pro dnešek a nejbližší 2 dny z football-data.org."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    day_plus_2 = (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d")
+    url = f"https://api.football-data.org/v4/matches?dateFrom={today}&dateTo={day_plus_2}"
     headers = {"X-Auth-Token": FOOTBALL_DATA_API_KEY.strip()} if FOOTBALL_DATA_API_KEY else {}
 
     try:
@@ -48,33 +51,111 @@ def fetch_today_matches():
 
         data = res.json()
         raw_matches = data.get("matches", [])
-        
-        allowed_competitions = {"PL", "PD", "BL1", "SA", "FL1", "DED", "PPL", "CL", "EL"}
+
+        # Rozšířený seznam soutěží včetně repre (EC, WC) a Championship (ELC)
+        allowed_competitions = {
+            "PL", "PD", "BL1", "SA", "FL1", "DED", "PPL",
+            "CL", "EL", "EC", "WC", "ELC", "BSA"
+        }
         matches = []
 
+        # Nejprve vezmeme zápasy z prioritních soutěží (pouze neodehrané)
         for m in raw_matches:
+            if m.get("status") not in ["SCHEDULED", "TIMED"]:
+                continue
             comp_code = m.get("competition", {}).get("code")
             if comp_code in allowed_competitions:
                 matches.append({
                     "home": m["homeTeam"]["name"],
                     "away": m["awayTeam"]["name"],
                     "league": m.get("competition", {}).get("name", "Fotbal"),
+                    "utcDate": m.get("utcDate", "")[:16].replace("T", " "),
                     "status": m.get("status")
                 })
 
-        if not matches and raw_matches:
-            for m in raw_matches[:12]:
-                matches.append({
-                    "home": m["homeTeam"]["name"],
-                    "away": m["awayTeam"]["name"],
-                    "league": m.get("competition", {}).get("name", "Fotbal"),
-                    "status": m.get("status")
-                })
+        # Záložní fallback: pokud v hlavních soutěžích nejsou alespoň 4 zápasy, vezmeme vše dostupné v API
+        if len(matches) < 4 and raw_matches:
+            seen = {(x["home"], x["away"]) for x in matches}
+            for m in raw_matches:
+                if m.get("status") not in ["SCHEDULED", "TIMED"]:
+                    continue
+                pair = (m["homeTeam"]["name"], m["awayTeam"]["name"])
+                if pair not in seen:
+                    matches.append({
+                        "home": m["homeTeam"]["name"],
+                        "away": m["awayTeam"]["name"],
+                        "league": m.get("competition", {}).get("name", "Fotbal"),
+                        "utcDate": m.get("utcDate", "")[:16].replace("T", " "),
+                        "status": m.get("status")
+                    })
+                    seen.add(pair)
+                if len(matches) >= 15:
+                    break
 
-        return matches
+        return matches[:20]
     except Exception as e:
         print(f"Výjimka při stahování zápasů: {e}")
         return []
+
+
+def get_current_stake_info():
+    """Spočítá aktuální krok progrese a doporučený vklad z historie."""
+    if not os.path.exists(HISTORY_FILE):
+        return 1, int(BASE_STAKE), "Krok 1/4 (Základní vklad 1 000 Kč)"
+    try:
+        with open(HISTORY_FILE, "r", encoding="utf-8-sig") as f:
+            history = json.load(f)
+    except Exception:
+        return 1, int(BASE_STAKE), "Krok 1/4 (Základní vklad 1 000 Kč)"
+
+    evaluated = [t for t in history if t.get("status") in ["won", "lost"]]
+    step = 1
+    next_stake = BASE_STAKE
+    k2_payout = 0.0
+
+    for t in evaluated:
+        won = (t["status"] == "won")
+        try:
+            odds = float(t.get("total_odds", 2.0))
+        except (ValueError, TypeError):
+            odds = 2.0
+
+        if step == 1:
+            if won:
+                net_profit = BASE_STAKE * (odds - 1.0)
+                next_stake = round(net_profit / 2.0, 2)
+                step = 2
+            else:
+                next_stake = BASE_STAKE
+                step = 1
+        elif step == 2:
+            if won:
+                k2_payout = round(next_stake * odds, 2)
+                next_stake = k2_payout
+                step = 3
+            else:
+                next_stake = BASE_STAKE
+                step = 1
+        elif step == 3:
+            if won:
+                next_stake = round(k2_payout / 2.0, 2)
+                step = 4
+            else:
+                next_stake = BASE_STAKE
+                step = 1
+        elif step == 4:
+            next_stake = BASE_STAKE
+            step = 1
+
+    rounded = int(round(next_stake))
+    labels = {
+        1: f"Krok 1/4 (Základní vklad {rounded:,} Kč)",
+        2: f"Krok 2/4 (Pojistka {rounded:,} Kč – 50 % zisku z K1)",
+        3: f"Krok 3/4 (Sázka {rounded:,} Kč – celá výhra z K2)",
+        4: f"Krok 4/4 (Jistící sázka {rounded:,} Kč – 50 % z K2)"
+    }
+    return step, rounded, labels[step]
+
 
 def ask_gemini(system_prompt, user_prompt):
     """Zavolá Gemini Flash s vynuceným JSON formátem."""
@@ -101,6 +182,7 @@ def ask_gemini(system_prompt, user_prompt):
         print(f"Gemini API selhalo nebo není dostupné ({e}), přecházím na zálohu...")
     return None
 
+
 def ask_openrouter(system_prompt, user_prompt):
     """Záložní volání modelů na OpenRouteru s automatickou opravou JSONu."""
     if not openrouter_client:
@@ -108,8 +190,8 @@ def ask_openrouter(system_prompt, user_prompt):
 
     models = [
         "openrouter/auto",
-        "liquid/lfm-2.5-2.6b:free",
-        "nvidia/nemotron-3.5-lightning:free"
+        "google/gemini-2.0-flash-001",
+        "meta-llama/llama-3.3-70b-instruct:free"
     ]
 
     for model_name in models:
@@ -131,26 +213,28 @@ def ask_openrouter(system_prompt, user_prompt):
             continue
     return None
 
+
 def generate_ticket(matches):
     today = datetime.now().strftime("%Y-%m-%d")
 
-    # Pokud je v nabídce méně než 4 zápasy, raději netipujeme
-    if not matches or len(matches) < 4:
-        print("Dnes není k dispozici dostatek kvalitních zápasů pro bezpečný výběr.")
+    # Pro Double AKU stačí minimálně 2 dostupné zápasy
+    if not matches or len(matches) < 2:
+        print("V nejbližších 48 hodinách není v API dostatek zápasů ani pro Double AKU.")
         return None
 
     system_prompt = "Jsi konzervativní sportovní analytik zaměřený na fotbal. Odpovídej výhradně ve validním formátu JSON."
     user_prompt = f"""
 Dnešní datum je: {today}.
 
-Zde je seznam dnešních reálných zápasů:
+Zde je seznam dostupných reálných zápasů pro dnešek a nejbližší dny:
 {json.dumps(matches, ensure_ascii=False, indent=2)}
 
 Sestav AKU tiket PŘÍSNĚ ZE 2 NEJBEZPEČNĚJŠÍCH ZÁPASŮ (žádný třetí zápas):
-1. Zápas 1: Silný favorit na domácí půdě (Výhra domácích) NEBO otevřený ofenzivní zápas (Over 1.5). Kurz cca 1.35 až 1.48.
-2. Zápas 2: Silný favorit na domácí půdě (Výhra domácích) NEBO otevřený ofenzivní zápas (Over 1.5). Kurz cca 1.35 až 1.48.
+1. Zápas 1: Silný favorit na domácí půdě (Výhra domácích / Neprohra domácích) NEBO otevřený ofenzivní zápas (Over 1.5). Kurz cca 1.35 až 1.48.
+2. Zápas 2: Silný favorit na domácí půdě (Výhra domácích / Neprohra domácích) NEBO otevřený ofenzivní zápas (Over 1.5). Kurz cca 1.35 až 1.48.
 
 Pravidla:
+- Použij PŘESNÉ názvy týmů ze seznamu výše (Domácí vs Hosté).
 - Žádné sázky na outsidery.
 - Žádný třetí zápas.
 - Celkový kurz tiketu cca 1.90 až 2.15 (součin kurzů).
@@ -174,7 +258,7 @@ Vrať VÝHRADNĚ platný JSON v této struktuře:
     }}
   ],
   "total_odds": 1.99,
-  "analysis_summary": "krátké zhodnocení strategie pro dnešní den"
+  "analysis_summary": "krátké zhodnocení strategie"
 }}
 """
 
@@ -186,6 +270,8 @@ Vrať VÝHRADNĚ platný JSON v této struktuře:
         ticket_data = ask_openrouter(system_prompt, user_prompt)
 
     return ticket_data
+
+
 def save_ticket_to_history(ticket_data):
     if not ticket_data or not ticket_data.get("ticket"):
         return
@@ -193,13 +279,14 @@ def save_ticket_to_history(ticket_data):
     history = []
     if os.path.exists(HISTORY_FILE):
         try:
-            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+            with open(HISTORY_FILE, "r", encoding="utf-8-sig") as f:
                 history = json.load(f)
         except Exception:
             history = []
 
+    next_id = max([t.get("id", 0) for t in history], default=0) + 1
     entry = {
-        "id": len(history) + 1,
+        "id": next_id,
         "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "total_odds": ticket_data.get("total_odds"),
         "status": "pending",
@@ -211,17 +298,21 @@ def save_ticket_to_history(ticket_data):
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
 
+
 def send_telegram(ticket_data):
+    step, stake, step_desc = get_current_stake_info()
+
     if not ticket_data or not ticket_data.get("ticket"):
-        message = "ℹ️ *Dnes se nehraje dostatek zápasů v top ligách pro sestavení konzervativního tiketu.*"
+        message = "ℹ️ *Ani v nejbližších 48 hodinách není v API dostatek zápasů pro bezpečný tiket.*"
     else:
-        lines = ["🎯 *Denní fotbalový tiket (Cíl ~2.00)*\n"]
+        lines = ["🎯 *Fotbalový Double AKU tiket (Cíl ~2.00)*\n"]
         for idx, item in enumerate(ticket_data["ticket"], 1):
             lines.append(f"{idx}. ⚽ *{item.get('match', '')}* ({item.get('league', '')})")
             lines.append(f"   Tip: `{item.get('selection', '')}` | Kurz: `{item.get('odds', '')}`")
             lines.append(f"   Důvod: _{item.get('confidence_reason', '')}_\n")
 
         lines.append(f"📊 *Celkový kurz:* `{ticket_data.get('total_odds', 'N/A')}`")
+        lines.append(f"💰 *Staking:* *{step_desc}*")
         lines.append(f"💡 *Komentář:* {ticket_data.get('analysis_summary', '')}")
         message = "\n".join(lines)
 
@@ -232,12 +323,13 @@ def send_telegram(ticket_data):
         "text": message,
         "parse_mode": "Markdown"
     }
-    requests.post(url, json=payload)
+    requests.post(url, json=payload, timeout=10)
+
 
 if __name__ == "__main__":
-    print("1/4 Stahuji dnešní živý rozpis zápasů...")
+    print("1/4 Stahuji rozpis zápasů (dnes + 2 dny)...")
     matches = fetch_today_matches()
-    print(f"Nalezeno {len(matches)} zápasů v hlavních soutěžích.")
+    print(f"Nalezeno {len(matches)} dostupných zápasů.")
 
     print("2/4 Analyzuji nabídku a sestavuji tiket...")
     ticket = generate_ticket(matches)
