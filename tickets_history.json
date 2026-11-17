@@ -61,5 +61,21 @@
       }
     ],
     "summary": "Konzervativní AKU tiket kombinující domácí výhru silného favorita (Flamengo) a bezpečnou gólovou hranici Over 1.5 v kvalitním duelu Cruzeiro vs Palmeiras."
+  },
+  {
+    "id": 7,
+    "date": "2026-11-17 18:22",
+    "total_odds": null,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "CR Flamengo vs CA Paranaense",
+        "league": "Campeonato Brasileiro Série A",
+        "selection": "Výhra domácích",
+        "odds": 1.4,
+        "confidence_reason": "Flamengo je výrazný domácí favorit proti slabšímu soupeři z venku."
+      }
+    ],
+    "summary": null
   }
 ]
