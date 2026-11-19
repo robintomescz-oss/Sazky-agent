@@ -20,7 +20,7 @@
     "id": 5,
     "date": "2026-11-16 16:08",
     "total_odds": 1.96,
-    "status": "pending",
+    "status": "won",
     "ticket": [
       {
         "match": "CR Flamengo vs CA Paranaense",
@@ -37,13 +37,14 @@
         "confidence_reason": "Nízká gólová hranice omezuje riziko oproti sázce na výsledek vyrovnaného utkání."
       }
     ],
-    "summary": "Dvě konzervativní volby na Over 1.5; uvedené kurzy jsou orientační odhady, nikoli ověřené aktuální nabídky."
+    "summary": "Dvě konzervativní volby na Over 1.5; uvedené kurzy jsou orientační odhady, nikoli ověřené aktuální nabídky.",
+    "evaluation_detail": "✅ CR Flamengo vs CA Paranaense (2:1) -> Over 1.5 | ✅ Cruzeiro EC vs SE Palmeiras (2:1) -> Over 1.5"
   },
   {
     "id": 6,
     "date": "2026-11-16 19:28",
     "total_odds": 1.96,
-    "status": "pending",
+    "status": "won",
     "ticket": [
       {
         "match": "CR Flamengo vs CA Paranaense",
@@ -60,13 +61,14 @@
         "confidence_reason": "Oba týmy patří k ofenzivně laděným celkům v lize, vzájemné zápasy mívají tempo a minimálně dvě branky jsou vysoce pravděpodobné."
       }
     ],
-    "summary": "Konzervativní AKU tiket kombinující domácí výhru silného favorita (Flamengo) a bezpečnou gólovou hranici Over 1.5 v kvalitním duelu Cruzeiro vs Palmeiras."
+    "summary": "Konzervativní AKU tiket kombinující domácí výhru silného favorita (Flamengo) a bezpečnou gólovou hranici Over 1.5 v kvalitním duelu Cruzeiro vs Palmeiras.",
+    "evaluation_detail": "✅ CR Flamengo vs CA Paranaense (2:1) -> Výhra domácích | ✅ Cruzeiro EC vs SE Palmeiras (2:1) -> Over 1.5"
   },
   {
     "id": 7,
     "date": "2026-11-17 18:22",
     "total_odds": null,
-    "status": "pending",
+    "status": "won",
     "ticket": [
       {
         "match": "CR Flamengo vs CA Paranaense",
@@ -76,13 +78,14 @@
         "confidence_reason": "Flamengo je výrazný domácí favorit proti slabšímu soupeři z venku."
       }
     ],
-    "summary": null
+    "summary": null,
+    "evaluation_detail": "✅ CR Flamengo vs CA Paranaense (2:1) -> Výhra domácích"
   },
   {
     "id": 8,
     "date": "2026-11-18 17:56",
     "total_odds": null,
-    "status": "pending",
+    "status": "won",
     "ticket": [
       {
         "match": "CR Flamengo vs CA Paranaense",
@@ -91,6 +94,7 @@
         "odds": 1.4
       }
     ],
-    "summary": null
+    "summary": null,
+    "evaluation_detail": "✅ CR Flamengo vs CA Paranaense (2:1) -> Výhra domácích"
   }
 ]
