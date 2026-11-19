@@ -96,5 +96,28 @@
     ],
     "summary": null,
     "evaluation_detail": "✅ CR Flamengo vs CA Paranaense (2:1) -> Výhra domácích"
+  },
+  {
+    "id": 9,
+    "date": "2026-11-19 18:08",
+    "total_odds": 2.03,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "Tottenham Hotspur FC vs Ipswich Town FC",
+        "league": "Premier League",
+        "selection": "Výhra domácích",
+        "odds": 1.4,
+        "confidence_reason": "Tottenham je výrazný domácí favorit proti slabšímu Ipswichi; volba odpovídá konzervativnímu riziku."
+      },
+      {
+        "match": "SS Lazio vs US Lecce",
+        "league": "Serie A",
+        "selection": "Výhra domácích",
+        "odds": 1.45,
+        "confidence_reason": "Lazio má doma jasně vyšší kvalitu i postavení než Lecce; kurz zapadá do požadovaného pásma."
+      }
+    ],
+    "summary": "Dvouzápasový tiket stojí na dvou domácích favoritech v přijatelném kurzovém rozmezí. Vyhýbám se outsiderům i třetímu zápasu, celkový kurz 2.03 odpovídá konzervativní strategii."
   }
 ]
