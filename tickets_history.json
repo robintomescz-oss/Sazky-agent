@@ -119,5 +119,28 @@
       }
     ],
     "summary": "Dvouzápasový tiket stojí na dvou domácích favoritech v přijatelném kurzovém rozmezí. Vyhýbám se outsiderům i třetímu zápasu, celkový kurz 2.03 odpovídá konzervativní strategii."
+  },
+  {
+    "id": 10,
+    "date": "2026-11-20 17:40",
+    "total_odds": 1.97,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "FC Bayern München vs 1. FC Köln",
+        "league": "Bundesliga",
+        "selection": "Výhra domácích",
+        "odds": 1.39,
+        "confidence_reason": "Bayern je výrazný domácí favorit; kurz je orientační a může se lišit podle nabídky."
+      },
+      {
+        "match": "Bayer 04 Leverkusen vs SC Paderborn 07",
+        "league": "Bundesliga",
+        "selection": "Výhra domácích",
+        "odds": 1.42,
+        "confidence_reason": "Leverkusen má na domácí půdě kvalitativní převahu; kurz je orientační a může se lišit podle nabídky."
+      }
+    ],
+    "summary": "Dvouzápasový tiket stojí na domácích favoritech a cílovém celkovém kurzu. Uvedené kurzy jsou pouze odhady, nikoli ověřená aktuální nabídka."
   }
 ]
