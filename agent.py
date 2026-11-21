@@ -25,7 +25,6 @@ openrouter_client = OpenAI(
 
 
 def parse_and_repair_json(text):
-    """Bezpečně extrahuje a opraví JSON z odpovědi modelu."""
     try:
         match = re.search(r"\{.*\}", text, re.DOTALL)
         raw_json_str = match.group(0) if match else text
@@ -38,7 +37,6 @@ def parse_and_repair_json(text):
 
 
 def fetch_real_odds_matches():
-    """Stáhne nadcházející fotbalové zápasy s reálnými evropskými kurzy v pásmu 1.42 - 1.65."""
     if not ODDS_API_KEY:
         return []
 
@@ -106,7 +104,6 @@ def fetch_real_odds_matches():
             avg_away = round(sum(away_odds_list) / len(away_odds_list), 2)
             double_chance_1x = round(1.0 / ((1.0 / avg_home) + (1.0 / avg_draw)), 2)
 
-            # Zvýšené kurzové pásmo 1.42 - 1.65 pro dosažení celkového kurzu kolem 2.20
             if 1.42 <= avg_home <= 1.65:
                 candidates.append({
                     "home": home,
@@ -137,7 +134,6 @@ def fetch_real_odds_matches():
 
 
 def fetch_espn_fallback_matches():
-    """Záložní zdroj rozpisu zápasů přes veřejné ESPN API."""
     matches = []
     endpoints = [
         ("UEFA Nations League", "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.nations/scoreboard"),
@@ -188,7 +184,6 @@ def fetch_matches():
 
 
 def get_current_stake_info():
-    """Spočítá aktuální krok progrese a doporučený vklad z historie."""
     if not os.path.exists(HISTORY_FILE):
         return 1, int(BASE_STAKE), "Krok 1/4 (Základní vklad 1 000 Kč)"
     try:
@@ -200,156 +195,4 @@ def get_current_stake_info():
     evaluated = [t for t in history if t.get("status") in ["won", "lost"]]
     step = 1
     next_stake = BASE_STAKE
-    k2_payout = 0.0
-
-    for t in evaluated:
-        won = (t["status"] == "won")
-        try:
-            odds = float(t.get("total_odds", 2.0))
-        except (ValueError, TypeError):
-            odds = 2.0
-
-        if step == 1:
-            if won:
-                net_profit = BASE_STAKE * (odds - 1.0)
-                next_stake = round(net_profit / 2.0, 2)
-                step = 2
-            else:
-                next_stake = BASE_STAKE
-                step = 1
-        elif step == 2:
-            if won:
-                k2_payout = round(next_stake * odds, 2)
-                next_stake = k2_payout
-                step = 3
-            else:
-                next_stake = BASE_STAKE
-                step = 1
-        elif step == 3:
-            if won:
-                next_stake = round(k2_payout / 2.0, 2)
-                step = 4
-            else:
-                next_stake = BASE_STAKE
-                step = 1
-        elif step == 4:
-            next_stake = BASE_STAKE
-            step = 1
-
-    rounded = int(round(next_stake))
-    labels = {
-        1: f"Krok 1/4 (Základní vklad {rounded:,} Kč)",
-        2: f"Krok 2/4 (Pojistka {rounded:,} Kč – 50 % zisku z K1)",
-        3: f"Krok 3/4 (Sázka {rounded:,} Kč – celá výhra z K2)",
-        4: f"Krok 4/4 (Jistící sázka {rounded:,} Kč – 50 % z K2)"
-    }
-    return step, rounded, labels[step]
-
-
-def ask_gemini(system_prompt, user_prompt):
-    if not GEMINI_API_KEY:
-        return None
-    try:
-        from google import genai
-        from google.genai import types
-
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                response_mime_type="application/json",
-                temperature=0.2,
-                max_output_tokens=1500,
-            ),
-        )
-        if response and response.text:
-            return parse_and_repair_json(response.text)
-    except Exception as e:
-        print(f"Gemini API selhalo ({e}), přecházím na zálohu...")
-    return None
-
-
-def ask_openrouter(system_prompt, user_prompt):
-    if not openrouter_client:
-        return None
-
-    models = [
-        "openrouter/auto",
-        "google/gemini-2.0-flash-001",
-        "meta-llama/llama-3.3-70b-instruct:free"
-    ]
-
-    for model_name in models:
-        try:
-            print(f"Zkouším záložní model OpenRouter: {model_name}...")
-            res = openrouter_client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                max_tokens=1200,
-                temperature=0.2
-            )
-            if res and res.choices and res.choices[0].message.content:
-                return parse_and_repair_json(res.choices[0].message.content)
-        except Exception as e:
-            print(f"Model {model_name} selhal ({e})...")
-            continue
-    return None
-
-
-def generate_ticket(matches, has_real_odds):
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    if not matches or len(matches) < 2:
-        print("Nedostatek zápasů pro Double AKU.")
-        return None
-
-    system_prompt = "Jsi konzervativní sportovní analytik zaměřený na fotbal. Odpovídej výhradně ve validním formátu JSON."
-
-    if has_real_odds:
-        user_prompt = f"""
-Dnešní datum je: {today}.
-
-Zde je seznam nadcházejících zápasů s REÁLNÝMI EVROPSKÝMI KURZY (pásmo 1.42–1.65):
-{json.dumps(matches, ensure_ascii=False, indent=2)}
-
-Vyber PŘÍSNĚ 2 NEJBEZPEČNĚJŠÍ ZÁPASY do Double AKU tiketu:
-- Použij PŘESNĚ hodnotu 'recommended_selection' a PŘESNÉ číslo 'real_odds' uvedené u vybraných zápasů.
-- Celkový kurz ('total_odds') musí být přesný součin obou kurzů s cílem kolem 2.20 (rozmezí 2.05 až 2.45).
-- Preferuj známější evropské soutěže a favority s jasnou domácí převahou.
-
-Vrať VÝHRADNĚ platný JSON v této struktuře:
-{{
-  "ticket": [
-    {{
-      "match": "Domácí vs Hosté",
-      "league": "Název ligy",
-      "selection": "Výhra domácích (1) / Neprohra domácích (1X)",
-      "odds": 1.48,
-      "confidence_reason": "stručný analytický důvod"
-    }},
-    {{
-      "match": "Domácí vs Hosté",
-      "league": "Název ligy",
-      "selection": "Výhra domácích (1) / Neprohra domácích (1X)",
-      "odds": 1.49,
-      "confidence_reason": "stručný analytický důvod"
-    }}
-  ],
-  "total_odds": 2.21,
-  "analysis_summary": "krátké zhodnocení reálné nabídky"
-}}
-"""
-    else:
-        user_prompt = f"""
-Dnešní datum je: {today}.
-
-Zde je seznam dostupných zápasů (záložní rozpis bez kurzů):
-{json.dumps(matches, ensure_ascii=False, indent=2)}
-
-Sestav AKU tiket PŘÍSNĚ ZE 2 NEJBEZPEČNĚJŠÍCH ZÁPASŮ (jednotlivý kurz 1.45–1.55, cílový celkový kurz kolem 2.20).
-Vrať VÝHRADNĚ platný JSON se strukturou 'ticket', 'total_odds'
+    k2_
