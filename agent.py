@@ -195,4 +195,240 @@ def get_current_stake_info():
     evaluated = [t for t in history if t.get("status") in ["won", "lost"]]
     step = 1
     next_stake = BASE_STAKE
-    k2_
+    k2_payout = 0.0
+
+    for t in evaluated:
+        won = (t["status"] == "won")
+        try:
+            odds = float(t.get("total_odds", 2.0))
+        except (ValueError, TypeError):
+            odds = 2.0
+
+        if step == 1:
+            if won:
+                net_profit = BASE_STAKE * (odds - 1.0)
+                next_stake = round(net_profit / 2.0, 2)
+                step = 2
+            else:
+                next_stake = BASE_STAKE
+                step = 1
+        elif step == 2:
+            if won:
+                k2_payout = round(next_stake * odds, 2)
+                next_stake = k2_payout
+                step = 3
+            else:
+                next_stake = BASE_STAKE
+                step = 1
+        elif step == 3:
+            if won:
+                next_stake = round(k2_payout / 2.0, 2)
+                step = 4
+            else:
+                next_stake = BASE_STAKE
+                step = 1
+        elif step == 4:
+            next_stake = BASE_STAKE
+            step = 1
+
+    rounded = int(round(next_stake))
+    labels = {
+        1: f"Krok 1/4 (Základní vklad {rounded:,} Kč)",
+        2: f"Krok 2/4 (Pojistka {rounded:,} Kč – 50 % zisku z K1)",
+        3: f"Krok 3/4 (Sázka {rounded:,} Kč – celá výhra z K2)",
+        4: f"Krok 4/4 (Jistící sázka {rounded:,} Kč – 50 % z K2)"
+    }
+    return step, rounded, labels[step]
+
+
+def ask_gemini(system_prompt, user_prompt):
+    if not GEMINI_API_KEY:
+        return None
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                temperature=0.2,
+                max_output_tokens=1500,
+            ),
+        )
+        if response and response.text:
+            return parse_and_repair_json(response.text)
+    except Exception as e:
+        print(f"Gemini API selhalo ({e}), přecházím na zálohu...")
+    return None
+
+
+def ask_openrouter(system_prompt, user_prompt):
+    if not openrouter_client:
+        return None
+
+    models = [
+        "openrouter/auto",
+        "google/gemini-2.0-flash-001",
+        "meta-llama/llama-3.3-70b-instruct:free"
+    ]
+
+    for model_name in models:
+        try:
+            print(f"Zkouším záložní model OpenRouter: {model_name}...")
+            res = openrouter_client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                max_tokens=1200,
+                temperature=0.2
+            )
+            if res and res.choices and res.choices[0].message.content:
+                return parse_and_repair_json(res.choices[0].message.content)
+        except Exception as e:
+            print(f"Model {model_name} selhal ({e})...")
+            continue
+    return None
+
+
+def generate_ticket(matches, has_real_odds):
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    if not matches or len(matches) < 2:
+        print("Nedostatek zápasů pro Double AKU.")
+        return None
+
+    system_prompt = "Jsi konzervativní sportovní analytik zaměřený na fotbal. Odpovídej výhradně ve validním formátu JSON."
+    matches_json = json.dumps(matches, ensure_ascii=False, indent=2)
+
+    if has_real_odds:
+        prompt_lines = [
+            f"Dnešní datum je: {today}.",
+            "Zde je seznam nadcházejících zápasů s REÁLNÝMI EVROPSKÝMI KURZY (pásmo 1.42–1.65):",
+            matches_json,
+            "Vyber PŘÍSNĚ 2 NEJBEZPEČNĚJŠÍ ZÁPASY do Double AKU tiketu:",
+            "- Použij PŘESNĚ hodnotu 'recommended_selection' a PŘESNÉ číslo 'real_odds' uvedené u vybraných zápasů.",
+            "- Celkový kurz ('total_odds') musí být přesný součin obou kurzů s cílem kolem 2.20 (rozmezí 2.05 až 2.45).",
+            "- Preferuj známější evropské soutěže a favority s jasnou domácí převahou.",
+            'Vrať VÝHRADNĚ platný JSON v této struktuře: {"ticket": [{"match": "Domácí vs Hosté", "league": "Název ligy", "selection": "Výhra domácích (1)", "odds": 1.48, "confidence_reason": "stručný důvod"}, {"match": "Domácí vs Hosté", "league": "Název ligy", "selection": "Neprohra domácích (1X)", "odds": 1.49, "confidence_reason": "stručný důvod"}], "total_odds": 2.21, "analysis_summary": "krátké zhodnocení"}'
+        ]
+    else:
+        prompt_lines = [
+            f"Dnešní datum je: {today}.",
+            "Zde je seznam dostupných zápasů (záložní rozpis bez kurzů):",
+            matches_json,
+            "Sestav AKU tiket PŘÍSNĚ ZE 2 NEJBEZPEČNĚJŠÍCH ZÁPASŮ (jednotlivý kurz 1.45–1.55, cílový celkový kurz kolem 2.20).",
+            'Vrať VÝHRADNĚ platný JSON v této struktuře: {"ticket": [{"match": "Domácí vs Hosté", "league": "Název ligy", "selection": "Výhra domácích", "odds": 1.48, "confidence_reason": "stručný důvod"}, {"match": "Domácí vs Hosté", "league": "Název ligy", "selection": "Over 1.5", "odds": 1.48, "confidence_reason": "stručný důvod"}], "total_odds": 2.19, "analysis_summary": "krátké zhodnocení"}'
+        ]
+
+    user_prompt = "\n".join(prompt_lines)
+
+    print("Zkouším primární motor: Google Gemini 2.5 Flash...")
+    ticket_data = ask_gemini(system_prompt, user_prompt)
+
+    if not ticket_data:
+        print("Přepínám na záložní motor: OpenRouter...")
+        ticket_data = ask_openrouter(system_prompt, user_prompt)
+
+    if ticket_data and isinstance(ticket_data.get("ticket"), list) and len(ticket_data["ticket"]) == 2:
+        try:
+            o1 = float(ticket_data["ticket"][0]["odds"])
+            o2 = float(ticket_data["ticket"][1]["odds"])
+            ticket_data["total_odds"] = round(o1 * o2, 2)
+        except Exception:
+            pass
+
+    return ticket_data
+
+
+def save_ticket_to_history(ticket_data):
+    if not ticket_data or not ticket_data.get("ticket"):
+        return
+
+    history = []
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8-sig") as f:
+                history = json.load(f)
+        except Exception:
+            history = []
+
+    next_id = max([t.get("id", 0) for t in history], default=0) + 1
+    entry = {
+        "id": next_id,
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "total_odds": ticket_data.get("total_odds"),
+        "status": "pending",
+        "ticket": ticket_data.get("ticket"),
+        "summary": ticket_data.get("analysis_summary")
+    }
+    history.append(entry)
+
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+
+def send_telegram(ticket_data, has_real_odds):
+    step, stake, step_desc = get_current_stake_info()
+
+    if not ticket_data or not ticket_data.get("ticket"):
+        message = "ℹ️ V aktuální nabídce teď nejsou žádné zápasy splňující bezpečná kurzová kritéria (1.42–1.65)."
+    else:
+        source_badge = "Reálné EU kurzy (Cíl ~2.20)" if has_real_odds else "Orientační kurzy (Cíl ~2.20)"
+        lines = [f"🎯 *Fotbalový Double AKU tiket*\n_{source_badge}_\n"]
+        for idx, item in enumerate(ticket_data["ticket"], 1):
+            lines.append(f"{idx}. ⚽ *{item.get('match', '')}* ({item.get('league', '')})")
+            lines.append(f"   Tip: `{item.get('selection', '')}` | Kurz: `{item.get('odds', '')}`")
+            lines.append(f"   Důvod: _{item.get('confidence_reason', '')}_\n")
+
+        lines.append(f"📊 *Celkový kurz (EU):* `{ticket_data.get('total_odds', 'N/A')}`")
+        lines.append(f"💰 *Staking:* *{step_desc}*")
+        lines.append(f"💡 *Komentář:* {ticket_data.get('analysis_summary', '')}")
+        lines.append("\n✏️ _Pokud na Tipsportu vsadíš jiný celkový kurz, odpověz botovi zprávou ve tvaru:_ `/kurz 2.08`")
+        message = "\n".join(lines)
+
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("CHYBA: Chybí TELEGRAM_BOT_TOKEN nebo TELEGRAM_CHAT_ID v environment proměnných!")
+        return
+
+    clean_token = TELEGRAM_BOT_TOKEN.replace("[", "").replace("]", "").replace("https://api.telegram.org/bot", "").strip()
+    url = f"https://api.telegram.org/bot{clean_token}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID.strip(),
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+
+    res = requests.post(url, json=payload, timeout=10)
+    if res.status_code != 200:
+        print(f"Telegram Markdown selhal ({res.status_code}: {res.text}), odesílám jako čistý text...")
+        plain_message = message.replace("*", "").replace("_", "").replace("`", "")
+        payload_plain = {
+            "chat_id": TELEGRAM_CHAT_ID.strip(),
+            "text": plain_message
+        }
+        res2 = requests.post(url, json=payload_plain, timeout=10)
+        print(f"Výsledek záložního odeslání: {res2.status_code}")
+    else:
+        print("Zpráva úspěšně doručena na Telegram.")
+
+
+if __name__ == "__main__":
+    print("1/4 Stahuji zápasy a reálné kurzy (min. 1.42)...")
+    matches, has_real_odds = fetch_matches()
+    print(f"Celkem připraveno {len(matches)} kandidátů (reálné kurzy: {has_real_odds}).")
+
+    print("2/4 Analyzuji nabídku a sestavuji tiket...")
+    ticket = generate_ticket(matches, has_real_odds)
+
+    print("3/4 Ukládám do historie...")
+    save_ticket_to_history(ticket)
+
+    print("4/4 Odesílám na Telegram...")
+    send_telegram(ticket, has_real_odds)
+    print("Hotovo!")
