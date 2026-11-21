@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "id": 1,
+    "date": "2026-11-21 21:29",
+    "total_odds": 2.22,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "E2E Epsilon vs E2E Zeta",
+        "league": "E2E test",
+        "selection": "Výhra domácích (1)",
+        "odds": 1.43,
+        "real_odds": 1.43,
+        "confidence_reason": "Fotbalový favorit s kurzem v bezpečném pásmu (průměr EU sázkových kanceláří).",
+        "commence_time": "2026-11-22T03:29:32.828Z"
+      },
+      {
+        "match": "E2E Eta vs E2E Theta",
+        "league": "E2E test",
+        "selection": "Výhra domácích (1)",
+        "odds": 1.55,
+        "real_odds": 1.55,
+        "confidence_reason": "Fotbalový favorit s kurzem v bezpečném pásmu (průměr EU sázkových kanceláří).",
+        "commence_time": "2026-11-22T03:29:32.828Z"
+      }
+    ],
+    "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
+  }
+]
