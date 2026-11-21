@@ -21,5 +21,28 @@
       }
     ],
     "summary": "Dvě opatrné favorizované volby s orientačním součinem kurzů poblíž 2,20. V zadání nejsou skutečné kurzy ani aktuální informace o formě a absencích, proto nelze ověřit jejich dostupnost či bezpečnost."
+  },
+  {
+    "id": 2,
+    "date": "2026-11-21 16:42",
+    "total_odds": 2.21,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "Real Madrid vs Celta Vigo",
+        "league": "La Liga",
+        "selection": "Výhra domácích",
+        "odds": 1.49,
+        "confidence_reason": "Real Madrid má na domácím hřišti papírovou převahu; uvedený kurz je pouze orientační odhad."
+      },
+      {
+        "match": "AS Monaco vs AJ Auxerre",
+        "league": "Ligue 1",
+        "selection": "Výhra domácích",
+        "odds": 1.48,
+        "confidence_reason": "Monaco je doma favoritem proti papírově slabšímu soupeři; uvedený kurz je pouze orientační odhad."
+      }
+    ],
+    "summary": "Dvě domácí výhry s odhadovanými kurzy v požadovaném rozmezí. Kurzy ani aktuální forma a sestavy nejsou ověřeny; před podáním tiketu je zkontrolujte."
   }
 ]
