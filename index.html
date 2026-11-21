@@ -368,7 +368,7 @@
     <div class="field">
       <label for="githubToken">GITHUB_TOKEN <span class="key-state" id="tokenState"></span></label>
       <input id="githubToken" type="password" autocomplete="off" spellcheck="false" placeholder="Personal Access Token (Contents: Read and write)">
-      <div class="help">Fine-grained token s právem <b>Contents: Read and write</b> na repozitář. Umožní čtení i zápis historie.</div>
+      <div class="help">Fine-grained token s právem <b>Contents: Read and write</b>. Potřebný jen pro ukládání tiketů – veřejná historie se načítá i bez něj.</div>
     </div>
 
     <div class="repo-note">
@@ -583,38 +583,54 @@
     return { history: parseHistory(b64DecodeUnicode(data.content)), sha: data.sha || null };
   }
 
+  async function fetchHistoryPublic() {
+    const res = await fetch(
+      "https://raw.githubusercontent.com/" + REPO + "/" + BRANCH + "/" + HISTORY_PATH + "?t=" + Date.now(),
+      { cache: "no-store" }
+    );
+    if (!res.ok) throw new Error("veřejná historie není dostupná (HTTP " + res.status + ")");
+    return parseHistory(await res.text());
+  }
+
   async function loadHistory(options) {
     const opts = options || {};
     const token = lsGet(LS.token).trim();
     if (!opts.silent) $("#historySection").innerHTML = '<section class="card"><div class="empty">Načítám historii…</div></section>';
 
-    if (!token) {
-      state.history = [];
-      state.sha = null;
-      state.historyLoaded = false;
-      state.lastSource = "";
-      renderAll();
-      $("#historySection").innerHTML =
-        '<section class="card"><h2>📜 Uzavřené tikety</h2><div class="empty">Pro načtení a ukládání historie vlož <b>GITHUB_TOKEN</b> v nastavení ⚙️.<br>Doporučení tiketu funguje i bez něj.</div></section>';
-      if (!opts.silent) toast("Nejdřív nastav GITHUB_TOKEN pro synchronizaci s GitHubem.", "err");
-      return;
-    }
+    let tokenError = null;
 
     try {
-      const result = await fetchHistoryFromApi();
-      state.history = result.history;
-      state.sha = result.sha;
+      if (token) {
+        try {
+          const result = await fetchHistoryFromApi();
+          state.history = result.history;
+          state.sha = result.sha;
+          state.lastSource = "GitHub API";
+        } catch (apiError) {
+          tokenError = apiError;
+          state.history = await fetchHistoryPublic();
+          state.sha = null;
+          state.lastSource = "veřejná historie (jen čtení)";
+        }
+      } else {
+        state.history = await fetchHistoryPublic();
+        state.sha = null;
+        state.lastSource = "veřejná historie (jen čtení)";
+      }
+
       state.historyLoaded = true;
-      state.lastSource = "GitHub API";
       renderAll();
       if (!opts.silent) toast("Historie načtena (" + state.history.length + " tiketů).", "ok");
+      if (tokenError && !opts.silent) toast("GitHub token selhal, čtu veřejnou historii (jen čtení).", "err");
     } catch (error) {
       state.historyLoaded = false;
       renderProgress();
       renderActive();
       $("#historySection").innerHTML =
         '<section class="card"><h2>📜 Uzavřené tikety</h2><div class="error-box">Historii se nepodařilo načíst: ' +
-        esc(error.message) + '</div><p class="hint" style="margin-top:10px">Zkontroluj GITHUB_TOKEN (Contents: Read and write) v nastavení ⚙️.</p></section>';
+        esc(error.message) + '</div><p class="hint" style="margin-top:10px">' +
+        (token ? "Zkontroluj GITHUB_TOKEN v nastavení ⚙️." : "Veřejná historie není dostupná. Zkus obnovit ⟳.") +
+        "</p></section>";
       if (!opts.silent) toast("Chyba při načítání historie: " + error.message, "err");
     }
   }
@@ -994,6 +1010,7 @@
       const saved = await saveHistory(nextHistory, "Double AKU: nový tiket #" + entry.id, entry);
 
       state.history = saved;
+      state.lastSource = "GitHub API";
       state.ticket = null;
       state.aiComment = "";
       state.live = null;
@@ -1290,7 +1307,11 @@
       }).join("");
     }
 
-    const source = state.lastSource ? '<div class="muted small" style="margin-top:6px">Zdroj: ' + esc(state.lastSource) + '</div>' : "";
+    const readOnly = !lsGet(LS.token).trim();
+    const source = state.lastSource
+      ? '<div class="muted small" style="margin-top:6px">Zdroj: ' + esc(state.lastSource) +
+        (readOnly ? ' · pro ukládání tiketu nastav GITHUB_TOKEN v ⚙️' : '') + '</div>'
+      : "";
     section.innerHTML = '<section class="card"><div class="ticket-head"><h2>📜 Uzavřené tikety</h2>' +
       '<span class="pill">' + done.length + '</span></div>' + body + source + '</section>';
   }
