@@ -38,7 +38,7 @@ def parse_and_repair_json(text):
 
 
 def fetch_real_odds_matches():
-    """Stáhne nadcházející fotbalové zápasy s reálnými evropskými kurzy z The Odds API."""
+    """Stáhne nadcházející fotbalové zápasy s reálnými evropskými kurzy v pásmu 1.42 - 1.65."""
     if not ODDS_API_KEY:
         return []
 
@@ -66,7 +66,6 @@ def fetch_real_odds_matches():
 
         for ev in events:
             sport_key = ev.get("sport_key", "")
-            # Bereme pouze fotbalové soutěže
             if not sport_key.startswith("soccer_"):
                 continue
 
@@ -85,7 +84,6 @@ def fetch_real_odds_matches():
             if not bookmakers:
                 continue
 
-            # Průměr kurzů napříč dostupnými EU bookmakery pro maximální přesnost vůči Tipsportu
             home_odds_list = []
             draw_odds_list = []
             away_odds_list = []
@@ -106,12 +104,10 @@ def fetch_real_odds_matches():
             avg_home = round(sum(home_odds_list) / len(home_odds_list), 2)
             avg_draw = round(sum(draw_odds_list) / len(draw_odds_list), 2)
             avg_away = round(sum(away_odds_list) / len(away_odds_list), 2)
-
-            # Výpočet reálného kurzu na neprohru domácích (1X)
             double_chance_1x = round(1.0 / ((1.0 / avg_home) + (1.0 / avg_draw)), 2)
 
-            # Vybereme zápasy, kde buď Výhra domácích (1), nebo Neprohra domácích (1X) sedí do pásma 1.30 - 1.52
-            if 1.30 <= avg_home <= 1.52:
+            # Zvýšené kurzové pásmo 1.42 - 1.65 pro dosažení celkového kurzu kolem 2.20
+            if 1.42 <= avg_home <= 1.65:
                 candidates.append({
                     "home": home,
                     "away": away,
@@ -121,7 +117,7 @@ def fetch_real_odds_matches():
                     "real_odds": avg_home,
                     "market_context": f"1: {avg_home} | X: {avg_draw} | 2: {avg_away}"
                 })
-            elif 1.30 <= double_chance_1x <= 1.52:
+            elif 1.42 <= double_chance_1x <= 1.65:
                 candidates.append({
                     "home": home,
                     "away": away,
@@ -132,7 +128,7 @@ def fetch_real_odds_matches():
                     "market_context": f"1: {avg_home} | X: {avg_draw} | 2: {avg_away} | 1X: {double_chance_1x}"
                 })
 
-        print(f"The Odds API: nalezeno {len(candidates)} zápasů s reálným kurzem v pásmu 1.30–1.52.")
+        print(f"The Odds API: nalezeno {len(candidates)} zápasů v pásmu 1.42–1.65.")
         return candidates[:20]
 
     except Exception as e:
@@ -141,7 +137,7 @@ def fetch_real_odds_matches():
 
 
 def fetch_espn_fallback_matches():
-    """Záložní zdroj rozpisu zápasů přes veřejné ESPN API bez kurzů."""
+    """Záložní zdroj rozpisu zápasů přes veřejné ESPN API."""
     matches = []
     endpoints = [
         ("UEFA Nations League", "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.nations/scoreboard"),
@@ -182,7 +178,6 @@ def fetch_espn_fallback_matches():
 
 
 def fetch_matches():
-    """Hlavní funkce pro získání zápasů: primárně reálné kurzy z The Odds API, záložně ESPN."""
     odds_matches = fetch_real_odds_matches()
     if len(odds_matches) >= 2:
         return odds_matches, True
@@ -319,13 +314,13 @@ def generate_ticket(matches, has_real_odds):
         user_prompt = f"""
 Dnešní datum je: {today}.
 
-Zde je seznam nadcházejících zápasů s REÁLNÝMI EVROPSKÝMI KURZY (odpovídající Tipsportu):
+Zde je seznam nadcházejících zápasů s REÁLNÝMI EVROPSKÝMI KURZY (pásmo 1.42–1.65):
 {json.dumps(matches, ensure_ascii=False, indent=2)}
 
 Vyber PŘÍSNĚ 2 NEJBEZPEČNĚJŠÍ ZÁPASY do Double AKU tiketu:
-- Použij PŘESNĚ hodnotu 'recommended_selection' a PŘESNÉ číslo 'real_odds' uvedené u vybraných zápasů (nic nevymýšlej ani neupravuj).
-- Celkový kurz ('total_odds') vypočítej jako přesný součin obou kurzů (zaokrouhleno na 2 desetinná místa), cíl je kolem 1.85 až 2.25.
-- Preferuj známější evropské soutěže a favority s jasnou převahou.
+- Použij PŘESNĚ hodnotu 'recommended_selection' a PŘESNÉ číslo 'real_odds' uvedené u vybraných zápasů.
+- Celkový kurz ('total_odds') musí být přesný součin obou kurzů s cílem kolem 2.20 (rozmezí 2.05 až 2.45).
+- Preferuj známější evropské soutěže a favority s jasnou domácí převahou.
 
 Vrať VÝHRADNĚ platný JSON v této struktuře:
 {{
@@ -334,18 +329,18 @@ Vrať VÝHRADNĚ platný JSON v této struktuře:
       "match": "Domácí vs Hosté",
       "league": "Název ligy",
       "selection": "Výhra domácích (1) / Neprohra domácích (1X)",
-      "odds": 1.40,
+      "odds": 1.48,
       "confidence_reason": "stručný analytický důvod"
     }},
     {{
       "match": "Domácí vs Hosté",
       "league": "Název ligy",
       "selection": "Výhra domácích (1) / Neprohra domácích (1X)",
-      "odds": 1.42,
+      "odds": 1.49,
       "confidence_reason": "stručný analytický důvod"
     }}
   ],
-  "total_odds": 1.99,
+  "total_odds": 2.21,
   "analysis_summary": "krátké zhodnocení reálné nabídky"
 }}
 """
@@ -356,95 +351,5 @@ Dnešní datum je: {today}.
 Zde je seznam dostupných zápasů (záložní rozpis bez kurzů):
 {json.dumps(matches, ensure_ascii=False, indent=2)}
 
-Sestav AKU tiket PŘÍSNĚ ZE 2 NEJBEZPEČNĚJŠÍCH ZÁPASŮ (Výhra domácích nebo Over 1.5, odhadovaný celkový kurz kolem 2.00).
-Vrať VÝHRADNĚ platný JSON se strukturou 'ticket', 'total_odds' a 'analysis_summary'.
-"""
-
-    print("Zkouším primární motor: Google Gemini 2.5 Flash...")
-    ticket_data = ask_gemini(system_prompt, user_prompt)
-
-    if not ticket_data:
-        print("Přepínám na záložní motor: OpenRouter...")
-        ticket_data = ask_openrouter(system_prompt, user_prompt)
-
-    # Pojistka: přepočítáme přesný součin kurzů v Pythonu, aby seděl na setinu
-    if ticket_data and isinstance(ticket_data.get("ticket"), list) and len(ticket_data["ticket"]) == 2:
-        try:
-            o1 = float(ticket_data["ticket"][0]["odds"])
-            o2 = float(ticket_data["ticket"][1]["odds"])
-            ticket_data["total_odds"] = round(o1 * o2, 2)
-        except Exception:
-            pass
-
-    return ticket_data
-
-
-def save_ticket_to_history(ticket_data):
-    if not ticket_data or not ticket_data.get("ticket"):
-        return
-
-    history = []
-    if os.path.exists(HISTORY_FILE):
-        try:
-            with open(HISTORY_FILE, "r", encoding="utf-8-sig") as f:
-                history = json.load(f)
-        except Exception:
-            history = []
-
-    next_id = max([t.get("id", 0) for t in history], default=0) + 1
-    entry = {
-        "id": next_id,
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "total_odds": ticket_data.get("total_odds"),
-        "status": "pending",
-        "ticket": ticket_data.get("ticket"),
-        "summary": ticket_data.get("analysis_summary")
-    }
-    history.append(entry)
-
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
-
-
-def send_telegram(ticket_data, has_real_odds):
-    step, stake, step_desc = get_current_stake_info()
-
-    if not ticket_data or not ticket_data.get("ticket"):
-        message = "ℹ️ *V aktuální nabídce teď nejsou žádné zápasy splňující bezpečná kurzová kritéria.*"
-    else:
-        source_badge = "Reálné EU kurzy (odpovídají Tipsportu)" if has_real_odds else "Orientační kurzy (záloha)"
-        lines = [f"🎯 *Fotbalový Double AKU tiket*\n_{source_badge}_\n"]
-        for idx, item in enumerate(ticket_data["ticket"], 1):
-            lines.append(f"{idx}. ⚽ *{item.get('match', '')}* ({item.get('league', '')})")
-            lines.append(f"   Tip: `{item.get('selection', '')}` | Kurz: `{item.get('odds', '')}`")
-            lines.append(f"   Důvod: _{item.get('confidence_reason', '')}_\n")
-
-        lines.append(f"📊 *Celkový kurz:* `{ticket_data.get('total_odds', 'N/A')}`")
-        lines.append(f"💰 *Staking:* *{step_desc}*")
-        lines.append(f"💡 *Komentář:* {ticket_data.get('analysis_summary', '')}")
-        message = "\n".join(lines)
-
-    clean_token = TELEGRAM_BOT_TOKEN.replace("[", "").replace("]", "").replace("https://api.telegram.org/bot", "").strip()
-    url = f"https://api.telegram.org/bot{clean_token}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID.strip(),
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    requests.post(url, json=payload, timeout=10)
-
-
-if __name__ == "__main__":
-    print("1/4 Stahuji zápasy a reálné kurzy...")
-    matches, has_real_odds = fetch_matches()
-    print(f"Celkem připraveno {len(matches)} kandidátů (reálné kurzy: {has_real_odds}).")
-
-    print("2/4 Analyzuji nabídku a sestavuji tiket...")
-    ticket = generate_ticket(matches, has_real_odds)
-
-    print("3/4 Ukládám do historie...")
-    save_ticket_to_history(ticket)
-
-    print("4/4 Odesílám na Telegram...")
-    send_telegram(ticket, has_real_odds)
-    print("Hotovo!")
+Sestav AKU tiket PŘÍSNĚ ZE 2 NEJBEZPEČNĚJŠÍCH ZÁPASŮ (jednotlivý kurz 1.45–1.55, cílový celkový kurz kolem 2.20).
+Vrať VÝHRADNĚ platný JSON se strukturou 'ticket', 'total_odds'
