@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Double AKU – Sázky agent</title>
+<meta name="description" content="Jednoduchá PWA pro sestavení a správu Double AKU tiketu – vždy přesně 2 zápasy.">
+<meta name="theme-color" content="#070b10">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Double AKU">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --bg: #070b10;
+    --bg-soft: #0b1220;
+    --card: #101823;
+    --card-2: #162131;
+    --line: #223044;
+    --text: #e8eef7;
+    --muted: #93a4bb;
+    --green: #22c55e;
+    --green-soft: rgba(34, 197, 94, .14);
+    --cyan: #38bdf8;
+    --amber: #f59e0b;
+    --amber-soft: rgba(245, 158, 11, .14);
+    --red: #ef4444;
+    --red-soft: rgba(239, 68, 68, .14);
+    --radius: 18px;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100dvh;
+    background:
+      radial-gradient(1000px 500px at 50% -180px, rgba(34, 197, 94, .16), transparent 70%),
+      radial-gradient(700px 400px at 110% 10%, rgba(56, 189, 248, .08), transparent 70%),
+      var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    padding-bottom: calc(28px + env(safe-area-inset-bottom));
+  }
+  button, input { font: inherit; }
+  button { cursor: pointer; }
+  .wrap { width: 100%; max-width: 780px; margin: 0 auto; padding: 0 16px; }
+
+  /* Horní lišta */
+  .topbar {
+    position: sticky; top: 0; z-index: 30;
+    backdrop-filter: blur(14px);
+    background: rgba(7, 11, 16, .82);
+    border-bottom: 1px solid rgba(34, 48, 68, .8);
+    padding-top: env(safe-area-inset-top);
+  }
+  .topbar-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .logo {
+    display: grid; place-items: center;
+    width: 42px; height: 42px; border-radius: 14px;
+    background: linear-gradient(145deg, rgba(34, 197, 94, .22), rgba(56, 189, 248, .12));
+    border: 1px solid rgba(34, 197, 94, .35);
+    font-size: 21px;
+  }
+  .brand strong { display: block; font-size: 17px; letter-spacing: .2px; }
+  .brand small { display: block; color: var(--muted); font-size: 12px; margin-top: -1px; }
+  .top-actions { display: flex; gap: 8px; }
+  .icon-btn {
+    width: 46px; height: 46px; border-radius: 14px;
+    border: 1px solid var(--line); background: var(--card);
+    color: var(--text); font-size: 20px; line-height: 1;
+    display: grid; place-items: center;
+  }
+  .icon-btn:active { transform: scale(.97); }
+
+  main { padding-top: 16px; display: grid; gap: 14px; }
+
+  .card {
+    background: linear-gradient(180deg, rgba(22, 33, 49, .75), rgba(16, 24, 35, .95));
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .card h2 { margin: 0 0 12px; font-size: 16px; letter-spacing: .3px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+
+  /* Progrese */
+  .progress-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .step-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 12px; border-radius: 999px;
+    background: var(--green-soft); border: 1px solid rgba(34, 197, 94, .35);
+    color: #86efac; font-weight: 700; font-size: 14px; white-space: nowrap;
+  }
+  .bankroll { text-align: right; }
+  .bankroll strong { display: block; font-size: 24px; letter-spacing: .2px; }
+  .bankroll span { color: var(--muted); font-size: 12px; }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin: 14px 0 16px; }
+  .step-dot {
+    height: 8px; border-radius: 99px; background: #1d2a3c; border: 1px solid #26364c;
+  }
+  .step-dot.done { background: rgba(34, 197, 94, .55); border-color: rgba(34, 197, 94, .6); }
+  .step-dot.current { background: var(--green); border-color: #4ade80; box-shadow: 0 0 16px rgba(34, 197, 94, .5); }
+  .stake-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: rgba(7, 11, 16, .5); border: 1px solid var(--line); border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .stake-row .stake-label { font-size: 13px; color: var(--muted); }
+  .stake-row strong { font-size: 26px; color: #86efac; letter-spacing: .3px; }
+  .profit { font-size: 13px; margin-top: 10px; display: flex; justify-content: space-between; gap: 10px; color: var(--muted); }
+  .profit b.pos { color: #4ade80; }
+  .profit b.neg { color: #fca5a5; }
+
+  /* Tlačítka */
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; min-height: 58px; padding: 14px 18px;
+    border-radius: 16px; border: 1px solid transparent;
+    font-weight: 700; font-size: 17px; color: #fff;
+    background: var(--card-2);
+    transition: transform .08s ease, filter .15s ease, opacity .15s ease;
+    text-align: center;
+  }
+  .btn:active { transform: scale(.985); }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-primary {
+    background: linear-gradient(135deg, #16a34a, #22c55e);
+    box-shadow: 0 10px 26px rgba(34, 197, 94, .22);
+  }
+  .btn-green { background: linear-gradient(135deg, #15803d, #22c55e); }
+  .btn-amber {
+    background: linear-gradient(135deg, #b45309, #f59e0b);
+    color: #1a1206;
+  }
+  .btn-amber.attention { animation: pulse 1.6s infinite; }
+  .btn-ghost { background: var(--card); border-color: var(--line); color: var(--text); }
+  .btn-danger { background: linear-gradient(135deg, #b91c1c, #ef4444); }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, .45); }
+    50% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+  }
+  .hint { color: var(--muted); font-size: 13px; text-align: center; margin: -4px 0 0; }
+
+  /* Tiket */
+  .ticket-card { border-color: rgba(34, 197, 94, .28); }
+  .ticket-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .ticket-head h2 { margin: 0; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--green-soft); border: 1px solid rgba(34, 197, 94, .3);
+    color: #86efac; border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 700;
+  }
+  .leg {
+    background: rgba(7, 11, 16, .55);
+    border: 1px solid var(--line); border-radius: 15px;
+    padding: 13px; margin-bottom: 11px;
+  }
+  .leg-top { display: flex; align-items: center; gap: 8px; }
+  .leg-num { font-size: 12px; font-weight: 800; letter-spacing: .7px; text-transform: uppercase; color: #86efac; }
+  .league {
+    font-size: 11px; color: var(--muted); background: rgba(148, 163, 184, .08);
+    border: 1px solid rgba(148, 163, 184, .16); padding: 3px 8px; border-radius: 999px;
+    max-width: 52%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mini {
+    margin-left: auto; width: 40px; height: 40px; border-radius: 12px;
+    background: var(--card-2); border: 1px solid var(--line); color: var(--text); font-size: 17px;
+  }
+  .match { font-size: 18px; font-weight: 700; margin: 9px 0 8px; line-height: 1.3; }
+  .sel-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chip {
+    background: rgba(56, 189, 248, .1); border: 1px solid rgba(56, 189, 248, .28);
+    color: #7dd3fc; border-radius: 9px; padding: 5px 9px; font-size: 13px; font-weight: 600;
+  }
+  .api-odds { color: var(--muted); font-size: 12px; }
+  .odds-field { display: block; }
+  .odds-field > span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .odds-field input {
+    width: 100%; min-height: 54px; padding: 10px 14px;
+    background: #0a111b; color: var(--text);
+    border: 1.5px solid #2b3d55; border-radius: 13px;
+    font-size: 22px; font-weight: 800; letter-spacing: .5px;
+  }
+  .odds-field input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(34, 197, 94, .16); }
+  .totals { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 12px; }
+  .total-box {
+    background: rgba(7, 11, 16, .55); border: 1px solid var(--line);
+    border-radius: 14px; padding: 11px 13px;
+  }
+  .total-box span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .total-box strong { font-size: 23px; letter-spacing: .3px; }
+  .total-box strong.warn { color: var(--amber); }
+  .warning {
+    display: none; align-items: flex-start; gap: 9px;
+    background: var(--amber-soft); border: 1px solid rgba(245, 158, 11, .35);
+    color: #fcd34d; border-radius: 13px; padding: 11px 12px;
+    font-size: 13px; margin-bottom: 11px;
+  }
+  .warning.show { display: flex; }
+  .ticket-actions { display: grid; gap: 9px; }
+  .ai-note { color: var(--muted); font-size: 13px; font-style: italic; margin: 2px 0 11px; }
+
+  /* Aktivní tiket a historie */
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
+    padding: 5px 10px; font-size: 12px; font-weight: 800; letter-spacing: .3px;
+  }
+  .status-pending { background: var(--amber-soft); border: 1px solid rgba(245, 158, 11, .4); color: #fcd34d; }
+  .status-won { background: var(--green-soft); border: 1px solid rgba(34, 197, 94, .4); color: #86efac; }
+  .status-lost { background: var(--red-soft); border: 1px solid rgba(239, 68, 68, .4); color: #fca5a5; }
+  .live-leg {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+    border-top: 1px solid rgba(34, 48, 68, .75); padding: 11px 0;
+  }
+  .live-leg:first-of-type { border-top: 0; }
+  .live-leg .name { font-weight: 650; font-size: 14.5px; }
+  .live-leg .pick { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .live-state { text-align: right; font-size: 12.5px; white-space: nowrap; }
+  .live-state .score { font-size: 17px; font-weight: 800; display: block; }
+  .live-state .ok { color: #4ade80; }
+  .live-state .bad { color: #f87171; }
+  .live-state .wait { color: var(--muted); }
+  .history-item {
+    border: 1px solid var(--line); border-radius: 14px; padding: 12px;
+    background: rgba(7, 11, 16, .45); margin-bottom: 9px;
+  }
+  .history-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .history-top .date { color: var(--muted); font-size: 12.5px; }
+  .history-leg { font-size: 13.5px; padding: 3px 0; color: #d6e1ef; }
+  .history-leg .odds { color: var(--muted); }
+  .empty { color: var(--muted); font-size: 14px; text-align: center; padding: 14px 6px; }
+  .error-box {
+    background: var(--red-soft); border: 1px solid rgba(239, 68, 68, .4);
+    color: #fecaca; border-radius: 13px; padding: 11px 12px; font-size: 13px;
+  }
+  .info-list { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13.5px; }
+  .info-list li { margin: 5px 0; }
+  .info-list b { color: var(--text); }
+
+  /* Nastavení */
+  .modal {
+    position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center;
+    background: rgba(0, 0, 0, .66); backdrop-filter: blur(4px);
+    padding: 0; opacity: 1; transition: opacity .15s ease;
+  }
+  .modal.hidden { display: none; }
+  .sheet {
+    width: 100%; max-width: 620px; max-height: 92dvh; overflow-y: auto;
+    background: var(--bg-soft); border: 1px solid var(--line);
+    border-radius: 22px 22px 0 0; padding: 20px 18px calc(22px + env(safe-area-inset-bottom));
+    box-shadow: 0 -20px 50px rgba(0, 0, 0, .55);
+  }
+  @media (min-width: 640px) {
+    .modal { align-items: center; padding: 20px; }
+    .sheet { border-radius: 22px; }
+  }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .sheet-head h2 { margin: 0; font-size: 19px; }
+  .field { margin-top: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 650; margin-bottom: 6px; }
+  .field input {
+    width: 100%; min-height: 52px; padding: 11px 13px;
+    border-radius: 13px; border: 1.5px solid #2b3d55; background: #0a111b; color: var(--text);
+    font-size: 15px;
+  }
+  .field input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(34, 197, 94, .15); }
+  .field .help { color: var(--muted); font-size: 12px; margin-top: 5px; }
+  .key-state { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 99px; margin-left: 6px; }
+  .key-state.set { background: var(--green-soft); color: #86efac; }
+  .key-state.missing { background: rgba(148, 163, 184, .12); color: var(--muted); }
+  .sheet-actions { display: grid; gap: 9px; margin-top: 20px; }
+  .repo-note {
+    margin-top: 14px; background: rgba(56, 189, 248, .07); border: 1px solid rgba(56, 189, 248, .22);
+    border-radius: 13px; padding: 11px 12px; font-size: 12.5px; color: #bae6fd; line-height: 1.55;
+  }
+  .repo-note code { color: #e0f2fe; }
+
+  /* Toast */
+  #toast {
+    position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 20px); z-index: 80;
+    max-width: min(92vw, 520px); padding: 13px 16px; border-radius: 14px;
+    background: #162131; border: 1px solid #2b3d55; box-shadow: 0 14px 40px rgba(0, 0, 0, .5);
+    color: var(--text); font-size: 14px; text-align: center;
+    opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #toast.ok { border-color: rgba(34, 197, 94, .5); }
+  #toast.err { border-color: rgba(239, 68, 68, .55); }
+
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">🎯</span>
+      <div>
+        <strong>Double AKU</strong>
+        <small>vždy přesně 2 zápasy</small>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn" data-action="reload-history" title="Načíst historii z GitHubu" aria-label="Obnovit historii">⟳</button>
+      <button class="icon-btn" data-action="open-settings" title="Nastavení" aria-label="Otevřít nastavení">⚙️</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card" id="progressCard" aria-live="polite"></section>
+
+  <section>
+    <button class="btn btn-primary" data-action="recommend" id="recommendBtn">🎯 Doporučit dnešní Double AKU</button>
+    <p class="hint">Stáhne kurzy z The Odds API, vybere 2 nejbezpečnější fotbalové tipy (1.42–1.65) a cílí na součin ~2.20.</p>
+  </section>
+
+  <section id="ticketSection"></section>
+  <section id="activeSection"></section>
+  <section id="historySection"></section>
+
+  <section class="card">
+    <h2>📘 Jak to funguje</h2>
+    <ul class="info-list">
+      <li><b>Double AKU = přesně 2 zápasy.</b> Třetí zápas se nikdy nepřidává.</li>
+      <li><b>Reálné kurzy:</b> u obou tipů přepiš kurz z Tipsportu – součin se hned přepočítá.</li>
+      <li><b>Pod 1.80:</b> tlačítko výměny vymění slabší zápas tak, aby součin vyšel kolem 2.15 (stále jen 2 zápasy).</li>
+      <li><b>Uložení:</b> tiket se zapíše do <code>tickets_history.json</code> na GitHubu jako <code>pending</code>. Workflow <code>live_tracker.py</code> ho do 5 minut začne sledovat a posílat hlášení na Telegram.</li>
+      <li><b>Progrese:</b> K1 = 1 000 Kč, K2 = 50 % čistého zisku z K1, K3 = celá výhra z K2, K4 = 50 % z K2. Prohra vrací na Krok 1.</li>
+    </ul>
+  </section>
+</main>
+
+<!-- Nastavení -->
+<div class="modal hidden" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="settingsTitle">⚙️ Nastavení</h2>
+      <button class="icon-btn" data-action="close-settings" aria-label="Zavřít nastavení">✕</button>
+    </div>
+    <p class="muted small">Klíče se ukládají pouze do tohoto zařízení (<code>localStorage</code>) a nikam je neposíláme kromě volání příslušných API.</p>
+
+    <div class="field">
+      <label for="oddsKey">ODDS_API_KEY <span class="key-state" id="oddsKeyState"></span></label>
+      <input id="oddsKey" type="password" autocomplete="off" spellcheck="false" placeholder="klíč z the-odds-api.com">
+      <div class="help">Pro stahování fotbalové nabídky a výměnu zápasů.</div>
+    </div>
+
+    <div class="field">
+      <label for="geminiKey">GEMINI_API_KEY <span class="key-state" id="geminiKeyState"></span></label>
+      <input id="geminiKey" type="password" autocomplete="off" spellcheck="false" placeholder="volitelné – AI komentář k tiketu">
+      <div class="help">Volitelné. Bez klíče aplikace funguje úplně stejně, jen bez AI věty.</div>
+    </div>
+
+    <div class="field">
+      <label for="githubToken">GITHUB_TOKEN <span class="key-state" id="tokenState"></span></label>
+      <input id="githubToken" type="password" autocomplete="off" spellcheck="false" placeholder="Personal Access Token (Contents: Read and write)">
+      <div class="help">Fine-grained token s právem <b>Contents: Read and write</b> na repozitář. Umožní čtení i zápis historie.</div>
+    </div>
+
+    <div class="repo-note">
+      Repozitář: <code>robintomescz-oss/Sazky-agent</code><br>
+      Větev: <code>main</code> · Soubor: <code>tickets_history.json</code>
+    </div>
+
+    <div class="sheet-actions">
+      <button class="btn btn-green" data-action="save-settings">💾 Uložit nastavení</button>
+      <button class="btn btn-ghost" data-action="close-settings">Zavřít</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  const REPO = "robintomescz-oss/Sazky-agent";
+  const BRANCH = "main";
+  const HISTORY_PATH = "tickets_history.json";
+  const BASE_STAKE = 1000;
+  const LS = { odds: "ODDS_API_KEY", gemini: "GEMINI_API_KEY", token: "GITHUB_TOKEN" };
+
+  const state = {
+    history: [],
+    sha: null,
+    historyLoaded: false,
+    ticket: null,
+    aiComment: "",
+    live: null,
+    liveTicketId: null,
+    busy: false,
+    lastSource: ""
+  };
+
+  const oddsCache = new Map();
+
+  /* ---------- Pomocné funkce ---------- */
+
+  const $ = (sel, root) => (root || document).querySelector(sel);
+
+  function round2(value) {
+    return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+  }
+
+  function fmtKc(value) {
+    const n = Number(value) || 0;
+    return new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 0 }).format(Math.round(n)) + " Kč";
+  }
+
+  function fmtOdds(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toFixed(2) : "";
+  }
+
+  function esc(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function nowStamp() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+      " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  function lsGet(key) {
+    try { return localStorage.getItem(key) || ""; } catch (e) { return ""; }
+  }
+  function lsSet(key, value) {
+    try {
+      if (value) localStorage.setItem(key, value);
+      else localStorage.removeItem(key);
+    } catch (e) { /* privátní režim */ }
+  }
+
+  let toastTimer = null;
+  function toast(message, type) {
+    const el = $("#toast");
+    el.textContent = message;
+    el.className = "show " + (type || "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = ""; }, 3600);
+  }
+
+  function setBusy(button, busy, labelBusy, labelIdle) {
+    if (!button) return;
+    button.disabled = busy;
+    button.innerHTML = busy
+      ? '<span class="spinner" aria-hidden="true"></span> ' + esc(labelBusy)
+      : esc(labelIdle);
+  }
+
+  /* ---------- Výpočet progrese a bankrollu ---------- */
+
+  function calculateProgression(history) {
+    const evaluated = (history || []).filter(t => t && (t.status === "won" || t.status === "lost"));
+    let step = 1;
+    let stake = BASE_STAKE;
+    let k2Payout = 0;
+    let bank = BASE_STAKE;
+
+    for (const ticket of evaluated) {
+      const won = ticket.status === "won";
+      const odds = Number(ticket.total_odds) > 1 ? Number(ticket.total_odds) : 2.0;
+      const currentStake = stake;
+
+      if (won) bank += currentStake * (odds - 1);
+      else bank -= currentStake;
+
+      if (step === 1) {
+        if (won) {
+          const net = BASE_STAKE * (odds - 1);
+          stake = round2(net / 2);
+          step = 2;
+        } else {
+          stake = BASE_STAKE;
+          step = 1;
+        }
+      } else if (step === 2) {
+        if (won) {
+          k2Payout = round2(currentStake * odds);
+          stake = k2Payout;
+          step = 3;
+        } else {
+          stake = BASE_STAKE;
+          step = 1;
+        }
+      } else if (step === 3) {
+        if (won) {
+          stake = round2(k2Payout / 2);
+          step = 4;
+        } else {
+          stake = BASE_STAKE;
+          step = 1;
+        }
+      } else {
+        stake = BASE_STAKE;
+        step = 1;
+      }
+    }
+
+    return {
+      step,
+      stake: Math.max(0, Math.round(stake)),
+      bank: Math.round(bank),
+      profit: Math.round(bank - BASE_STAKE)
+    };
+  }
+
+  const STEP_LABEL = {
+    1: "Základní vklad",
+    2: "50 % čistého zisku z K1 (druhá polovina zůstává jako pojistka)",
+    3: "Celá výhra z K2",
+    4: "50 % z K2 jako jistící sázka"
+  };
+
+  function latestPending() {
+    const pending = state.history.filter(t => t && t.status === "pending");
+    if (!pending.length) return null;
+    return pending.slice().sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0)).pop();
+  }
+
+  /* ---------- GitHub REST API ---------- */
+
+  function ghHeaders(extra) {
+    const headers = Object.assign({
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28"
+    }, extra || {});
+    const token = lsGet(LS.token).trim();
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return headers;
+  }
+
+  function contentsUrl() {
+    return "https://api.github.com/repos/" + REPO + "/contents/" + HISTORY_PATH + "?ref=" + encodeURIComponent(BRANCH);
+  }
+
+  function b64EncodeUnicode(text) {
+    const bytes = new TextEncoder().encode(text);
+    let binary = "";
+    bytes.forEach(b => { binary += String.fromCharCode(b); });
+    return btoa(binary);
+  }
+
+  function b64DecodeUnicode(base64) {
+    const clean = String(base64 || "").replace(/\s/g, "");
+    const binary = atob(clean);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  function parseHistory(raw) {
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch (e) { throw new Error("soubor tickets_history.json není platné JSON"); }
+    if (!Array.isArray(parsed)) throw new Error("tickets_history.json neobsahuje pole tiketů");
+    return parsed;
+  }
+
+  async function fetchHistoryFromApi() {
+    const res = await fetch(contentsUrl(), { headers: ghHeaders(), cache: "no-store" });
+    if (res.status === 404) return { history: [], sha: null };
+    if (!res.ok) throw new Error("GitHub API " + res.status + " – zkontroluj GITHUB_TOKEN");
+    const data = await res.json();
+    return { history: parseHistory(b64DecodeUnicode(data.content)), sha: data.sha || null };
+  }
+
+  async function loadHistory(options) {
+    const opts = options || {};
+    const token = lsGet(LS.token).trim();
+    if (!opts.silent) $("#historySection").innerHTML = '<section class="card"><div class="empty">Načítám historii…</div></section>';
+
+    if (!token) {
+      state.history = [];
+      state.sha = null;
+      state.historyLoaded = false;
+      state.lastSource = "";
+      renderAll();
+      $("#historySection").innerHTML =
+        '<section class="card"><h2>📜 Uzavřené tikety</h2><div class="empty">Pro načtení a ukládání historie vlož <b>GITHUB_TOKEN</b> v nastavení ⚙️.<br>Doporučení tiketu funguje i bez něj.</div></section>';
+      if (!opts.silent) toast("Nejdřív nastav GITHUB_TOKEN pro synchronizaci s GitHubem.", "err");
+      return;
+    }
+
+    try {
+      const result = await fetchHistoryFromApi();
+      state.history = result.history;
+      state.sha = result.sha;
+      state.historyLoaded = true;
+      state.lastSource = "GitHub API";
+      renderAll();
+      if (!opts.silent) toast("Historie načtena (" + state.history.length + " tiketů).", "ok");
+    } catch (error) {
+      state.historyLoaded = false;
+      renderProgress();
+      renderActive();
+      $("#historySection").innerHTML =
+        '<section class="card"><h2>📜 Uzavřené tikety</h2><div class="error-box">Historii se nepodařilo načíst: ' +
+        esc(error.message) + '</div><p class="hint" style="margin-top:10px">Zkontroluj GITHUB_TOKEN (Contents: Read and write) v nastavení ⚙️.</p></section>';
+      if (!opts.silent) toast("Chyba při načítání historie: " + error.message, "err");
+    }
+  }
+
+  async function saveHistory(nextHistory, message, newEntry) {
+    const token = lsGet(LS.token).trim();
+    if (!token) throw new Error("Chybí GITHUB_TOKEN – otevři nastavení ⚙️");
+
+    let payloadHistory = nextHistory;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (!state.sha) {
+        try {
+          const current = await fetchHistoryFromApi();
+          state.sha = current.sha;
+        } catch (e) {
+          state.sha = null;
+        }
+      }
+
+      const body = {
+        message: message,
+        content: b64EncodeUnicode(JSON.stringify(payloadHistory, null, 2) + "\n"),
+        branch: BRANCH
+      };
+      if (state.sha) body.sha = state.sha;
+
+      const res = await fetch("https://api.github.com/repos/" + REPO + "/contents/" + HISTORY_PATH, {
+        method: "PUT",
+        headers: ghHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(body)
+      });
+
+      if (res.status === 409 || res.status === 422) {
+        const fresh = await fetchHistoryFromApi();
+        state.sha = fresh.sha;
+        if (newEntry) {
+          const maxId = fresh.history.reduce((max, t) => Math.max(max, Number(t.id) || 0), 0);
+          newEntry.id = maxId + 1;
+          fresh.history.push(newEntry);
+          payloadHistory = fresh.history;
+        }
+        continue;
+      }
+
+      if (!res.ok) {
+        let detail = "";
+        try { detail = (await res.json()).message || ""; } catch (e) { /* ignore */ }
+        throw new Error("GitHub zápis " + res.status + (detail ? " – " + detail : ""));
+      }
+
+      const data = await res.json();
+      state.sha = (data.content && data.content.sha) || state.sha;
+      return payloadHistory;
+    }
+
+    throw new Error("Soubor se mezitím změnil, zkus to znovu.");
+  }
+
+  /* ---------- The Odds API ---------- */
+
+  function normalizeTeam(name) {
+    return String(name || "")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  }
+
+  function sameMatch(homeA, awayA, homeB, awayB) {
+    const a = normalizeTeam(homeA) + " " + normalizeTeam(awayA);
+    const b = normalizeTeam(homeB) + " " + normalizeTeam(awayB);
+    if (!a.trim() || !b.trim()) return false;
+    const tokensA = new Set(a.split(" ").filter(Boolean));
+    const tokensB = new Set(b.split(" ").filter(Boolean));
+    const shared = [...tokensA].filter(t => tokensB.has(t));
+    return shared.length >= 2 && Math.max(...shared.map(t => t.length)) >= 3;
+  }
+
+  async function fetchCandidates(minOdds, maxOdds, exclude) {
+    const key = lsGet(LS.odds).trim();
+    if (!key) throw new Error("Chybí ODDS_API_KEY – otevři nastavení ⚙️");
+
+    const cacheKey = minOdds + "-" + maxOdds;
+    const cached = oddsCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < 3 * 60 * 1000) {
+      return filterExcluded(cached.data, exclude);
+    }
+
+    const url = new URL("https://api.the-odds-api.com/v4/sports/upcoming/odds");
+    url.searchParams.set("apiKey", key);
+    url.searchParams.set("regions", "eu");
+    url.searchParams.set("markets", "h2h");
+    url.searchParams.set("oddsFormat", "decimal");
+
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) {
+      let text = "";
+      try { text = (await res.text()).slice(0, 160); } catch (e) { /* ignore */ }
+      if (res.status === 401) throw new Error("The Odds API: neplatný ODDS_API_KEY");
+      if (res.status === 429) throw new Error("The Odds API: došly kredity nebo příliš mnoho požadavků");
+      throw new Error("The Odds API " + res.status + (text ? ": " + text : ""));
+    }
+
+    const events = await res.json();
+    const now = Date.now();
+    const limit = now + 48 * 60 * 60 * 1000;
+    const candidates = [];
+
+    for (const ev of Array.isArray(events) ? events : []) {
+      if (!String(ev.sport_key || "").startsWith("soccer_")) continue;
+
+      const commence = ev.commence_time ? Date.parse(ev.commence_time) : NaN;
+      if (!Number.isFinite(commence) || commence < now || commence > limit) continue;
+
+      const home = ev.home_team || "";
+      const away = ev.away_team || "";
+      if (!home || !away) continue;
+
+      const homePrices = [], drawPrices = [], awayPrices = [];
+      for (const bookmaker of ev.bookmakers || []) {
+        for (const market of bookmaker.markets || []) {
+          if (market.key !== "h2h") continue;
+          const prices = {};
+          for (const outcome of market.outcomes || []) prices[outcome.name] = Number(outcome.price);
+          const h = Number(prices[home]), d = Number(prices.Draw), a = Number(prices[away]);
+          if (Number.isFinite(h) && Number.isFinite(d) && Number.isFinite(a) && h > 1 && d > 1 && a > 1) {
+            homePrices.push(h); drawPrices.push(d); awayPrices.push(a);
+          }
+        }
+      }
+      if (!homePrices.length) continue;
+
+      const avg = list => list.reduce((sum, v) => sum + v, 0) / list.length;
+      const avgHome = round2(avg(homePrices));
+      const avgDraw = round2(avg(drawPrices));
+      const avgAway = round2(avg(awayPrices));
+      const dc1x = round2(1 / ((1 / avgHome) + (1 / avgDraw)));
+
+      const base = {
+        home, away,
+        match: home + " vs " + away,
+        league: ev.sport_title || "Fotbal",
+        commence: ev.commence_time,
+        context: "1: " + avgHome + " | X: " + avgDraw + " | 2: " + avgAway + " | 1X: " + dc1x
+      };
+
+      if (avgHome >= minOdds && avgHome <= maxOdds) {
+        candidates.push(Object.assign({}, base, {
+          selection: "Výhra domácích (1)",
+          odds: avgHome
+        }));
+      } else if (dc1x >= minOdds && dc1x <= maxOdds) {
+        candidates.push(Object.assign({}, base, {
+          selection: "Neprohra domácích (1X)",
+          odds: dc1x
+        }));
+      }
+    }
+
+    oddsCache.set(cacheKey, { at: Date.now(), data: candidates });
+    return filterExcluded(candidates, exclude);
+  }
+
+  function filterExcluded(candidates, exclude) {
+    if (!exclude || !exclude.length) return candidates.slice();
+    return candidates.filter(c => !exclude.some(ex => sameMatch(c.home, c.away, ex.home, ex.away)));
+  }
+
+  function pickPair(pool, targetProduct) {
+    const usable = pool
+      .filter(c => Number(c.odds) > 1)
+      .sort((a, b) => a.odds - b.odds)
+      .slice(0, 60);
+
+    let best = null;
+    let bestScore = Infinity;
+    for (let i = 0; i < usable.length; i++) {
+      for (let j = i + 1; j < usable.length; j++) {
+        if (sameMatch(usable[i].home, usable[i].away, usable[j].home, usable[j].away)) continue;
+        const product = usable[i].odds * usable[j].odds;
+        const score = Math.abs(product - targetProduct);
+        if (score < bestScore - 1e-9) {
+          bestScore = score;
+          best = [usable[i], usable[j]];
+        }
+      }
+    }
+    return best;
+  }
+
+  function toLeg(candidate) {
+    return {
+      match: candidate.match,
+      league: candidate.league,
+      selection: candidate.selection,
+      odds: round2(candidate.odds),
+      real_odds: round2(candidate.odds),
+      api_odds: round2(candidate.odds),
+      confidence_reason: "Fotbalový favorit s kurzem v bezpečném pásmu (průměr EU sázkových kanceláří).",
+      commence_time: candidate.commence || ""
+    };
+  }
+
+  async function recommend() {
+    if (state.busy) return;
+    const button = $("#recommendBtn");
+    state.busy = true;
+    setBusy(button, true, "Stahuji kurzy…", "🎯 Doporučit dnešní Double AKU");
+
+    try {
+      const pool = await fetchCandidates(1.42, 1.65);
+      if (pool.length < 2) {
+        throw new Error("V nabídce teď nejsou alespoň 2 fotbalové zápasy v pásmu 1.42–1.65.");
+      }
+
+      const pair = pickPair(pool, 2.20);
+      if (!pair) throw new Error("Nepodařilo se sestavit dvojici z aktuální nabídky.");
+
+      state.ticket = [toLeg(pair[0]), toLeg(pair[1])];
+      state.aiComment = "";
+      renderTicket();
+      updateTicketSummary();
+      $("#ticketSection").scrollIntoView({ behavior: "smooth", block: "start" });
+      toast("Double AKU je připravený – přepiš kurzy z Tipsportu.", "ok");
+
+      fetchAiComment(state.ticket).then(comment => {
+        if (!comment) return;
+        state.aiComment = comment;
+        const el = $("#aiComment");
+        if (el) { el.textContent = "🤖 " + comment; el.style.display = "block"; }
+      }).catch(() => { /* AI je volitelná */ });
+    } catch (error) {
+      toast(error.message, "err");
+      if (/ODDS_API_KEY/.test(error.message)) openSettings();
+    } finally {
+      state.busy = false;
+      setBusy(button, false, "Stahuji kurzy…", "🎯 Doporučit dnešní Double AKU");
+    }
+  }
+
+  async function fetchAiComment(legs) {
+    const key = lsGet(LS.gemini).trim();
+    if (!key || legs.length !== 2) return "";
+    const prompt = "Jsi stručný sportovní analytik. Ke dvěma fotbalovým tipům napiš jednu českou větu (max 160 znaků) o tom, proč jsou bezpečné. Tipy: " +
+      legs.map(l => l.match + " – " + l.selection + " @ " + fmtOdds(l.odds)).join("; ") + ". Odpověz pouze větou.";
+
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + encodeURIComponent(key), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 120 }
+      })
+    });
+    if (!res.ok) return "";
+    const data = await res.json();
+    const text = data && data.candidates && data.candidates[0] && data.candidates[0].content &&
+      data.candidates[0].content.parts && data.candidates[0].content.parts[0] &&
+      data.candidates[0].content.parts[0].text;
+    return text ? String(text).trim().slice(0, 220) : "";
+  }
+
+  /* ---------- Výměna zápasu ---------- */
+
+  async function buildNewPair() {
+    const pool = (await fetchCandidates(1.48, 1.72)).filter(c => c.odds >= 1.48 && c.odds <= 1.72);
+    if (pool.length < 2) throw new Error("V nabídce není dost zápasů v pásmu 1.48–1.72.");
+    const pair = pickPair(pool, 2.15);
+    if (!pair) throw new Error("Nepodařilo se sestavit novou dvojici.");
+    return [toLeg(pair[0]), toLeg(pair[1])];
+  }
+
+  async function performSwap(index, force) {
+    if (!state.ticket || state.ticket.length !== 2 || state.busy) return;
+
+    const o1 = Number(state.ticket[0].odds);
+    const o2 = Number(state.ticket[1].odds);
+    if (!(o1 > 1) || !(o2 > 1)) { toast("Nejdřív zadej platné kurzy obou zápasů.", "err"); return; }
+
+    const total = o1 * o2;
+    if (!force && total >= 1.80) {
+      toast("Součin je " + fmtOdds(total) + " – výměna není potřeba.", "ok");
+      return;
+    }
+
+    state.busy = true;
+    try {
+      // Oba zápasy mají velmi nízký kurz -> celá nová dvojice (opět 2 zápasy).
+      if (o1 < 1.30 && o2 < 1.30) {
+        state.ticket = await buildNewPair();
+        renderTicket();
+        updateTicketSummary();
+        toast("Oba původní zápasy měly kurz pod 1.30 – sestavena nová dvojice.", "ok");
+        return;
+      }
+
+      let replaceIndex = index;
+      if (replaceIndex == null) replaceIndex = o1 <= o2 ? 0 : 1;
+      const keptIndex = 1 - replaceIndex;
+      const keptOdds = Number(state.ticket[keptIndex].odds);
+      const targetOdds = round2(2.15 / keptOdds);
+
+      const exclude = state.ticket.map(leg => {
+        const parts = String(leg.match || "").split(/\s+vs\.?\s+/i);
+        return { home: parts[0] || leg.match, away: parts[1] || "" };
+      });
+
+      const candidates = await fetchCandidates(1.42, 1.78, exclude);
+      if (!candidates.length) {
+        throw new Error("The Odds API nevrátilo vhodný náhradní zápas v pásmu 1.42–1.78.");
+      }
+
+      let best = null;
+      let bestDiff = Infinity;
+      for (const candidate of candidates) {
+        const diff = Math.abs(Number(candidate.odds) - targetOdds);
+        if (diff < bestDiff) { bestDiff = diff; best = candidate; }
+      }
+      if (!best) throw new Error("Náhradní zápas se nepodařilo vybrat.");
+
+      const replacement = toLeg(best);
+      replacement.replaced_match = state.ticket[replaceIndex].match;
+
+      const next = state.ticket.slice();
+      next[replaceIndex] = replacement;
+      next[keptIndex].real_odds = Number(state.ticket[keptIndex].odds);
+      state.ticket = next;
+
+      renderTicket();
+      updateTicketSummary();
+      toast("Vyměněno: " + best.match + " (kurz " + fmtOdds(best.odds) + ").", "ok");
+    } catch (error) {
+      toast(error.message, "err");
+      if (/ODDS_API_KEY/.test(error.message)) openSettings();
+    } finally {
+      state.busy = false;
+    }
+  }
+
+  /* ---------- Uložení tiketu ---------- */
+
+  async function confirmTicket() {
+    if (state.busy) return;
+    if (!state.ticket || state.ticket.length !== 2) { toast("Nejdřív si nech doporučit Double AKU.", "err"); return; }
+    if (!state.historyLoaded) { toast("Historie není načtená – klepni na ⟳.", "err"); return; }
+
+    const o1 = Number(state.ticket[0].odds);
+    const o2 = Number(state.ticket[1].odds);
+    if (!(o1 > 1.01) || !(o2 > 1.01)) { toast("Zadej platné reálné kurzy obou zápasů.", "err"); return; }
+
+    const total = round2(o1 * o2);
+    const button = $("#saveTicketBtn");
+    state.busy = true;
+    if (button) setBusy(button, true, "Ukládám na GitHub…", "✅ Potvrdit a uložit tiket");
+
+    try {
+      const legs = state.ticket.map(leg => ({
+        match: leg.match,
+        league: leg.league,
+        selection: leg.selection,
+        odds: round2(Number(leg.odds)),
+        real_odds: round2(Number(leg.odds)),
+        confidence_reason: leg.confidence_reason || "",
+        commence_time: leg.commence_time || ""
+      }));
+
+      const maxId = state.history.reduce((max, t) => Math.max(max, Number(t.id) || 0), 0);
+      const entry = {
+        id: maxId + 1,
+        date: nowStamp(),
+        total_odds: total,
+        status: "pending",
+        ticket: legs,
+        summary: state.aiComment || "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
+      };
+
+      const nextHistory = state.history.concat([entry]);
+      const saved = await saveHistory(nextHistory, "Double AKU: nový tiket #" + entry.id, entry);
+
+      state.history = saved;
+      state.ticket = null;
+      state.aiComment = "";
+      state.live = null;
+      state.liveTicketId = null;
+      renderAll();
+      toast("Tiket #" + entry.id + " uložen jako pending. Live tracker ho převezme do 5 minut.", "ok");
+      $("#activeSection").scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (error) {
+      toast("Uložení selhalo: " + error.message, "err");
+      if (/GITHUB_TOKEN/.test(error.message)) openSettings();
+    } finally {
+      state.busy = false;
+      renderTicket();
+    }
+  }
+
+  /* ---------- ESPN live skóre ---------- */
+
+  function espnDateParam() {
+    const pad = n => String(n).padStart(2, "0");
+    const fmt = d => d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate());
+    const from = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const to = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    return fmt(from) + "-" + fmt(to);
+  }
+
+  async function fetchEspnMatches() {
+    const leagues = [
+      "eng.1", "eng.2", "esp.1", "ita.1", "ger.1", "fra.1",
+      "ned.1", "por.1", "uefa.champions", "uefa.europa", "uefa.nations",
+      "fifa.worldq.uefa", "fifa.friendly", "bra.1", "arg.1", "usa.1"
+    ];
+    const dates = espnDateParam();
+    const timeout = (typeof AbortSignal !== "undefined" && AbortSignal.timeout) ? AbortSignal.timeout(9000) : undefined;
+
+    const results = await Promise.allSettled(leagues.map(slug =>
+      fetch("https://site.api.espn.com/apis/site/v2/sports/soccer/" + slug + "/scoreboard?dates=" + dates, { signal: timeout })
+        .then(res => res.ok ? res.json() : null)
+    ));
+
+    const matches = [];
+    for (const result of results) {
+      if (result.status !== "fulfilled" || !result.value) continue;
+      for (const ev of result.value.events || []) {
+        const status = ev.status || {};
+        const stateName = (status.type && status.type.state) || "";
+        const comps = (ev.competitions && ev.competitions[0] && ev.competitions[0].competitors) || [];
+        if (comps.length !== 2) continue;
+        const homeComp = comps.find(c => c.homeAway === "home") || comps[0];
+        const awayComp = comps.find(c => c.homeAway === "away") || comps[1];
+        matches.push({
+          home: homeComp.team && homeComp.team.displayName || "",
+          away: awayComp.team && awayComp.team.displayName || "",
+          state: stateName,
+          homeGoals: parseInt(homeComp.score, 10) || 0,
+          awayGoals: parseInt(awayComp.score, 10) || 0,
+          clock: status.displayClock || (status.type && status.type.shortDetail) || ""
+        });
+      }
+    }
+    return matches;
+  }
+
+  function evaluateSelection(selection, homeGoals, awayGoals) {
+    const sel = String(selection || "").toLowerCase().trim();
+    const total = homeGoals + awayGoals;
+
+    if (sel.includes("1x") || sel.includes("neprohra domácích") || sel.includes("neprohra domacich")) return homeGoals >= awayGoals;
+    if (sel.includes("x2") || sel.includes("neprohra hostů") || sel.includes("neprohra hostu")) return awayGoals >= homeGoals;
+    if (sel.includes("výhra domácích") || sel.includes("vyhra domacich") || sel === "1" || sel === "home" || sel.includes("(1)")) return homeGoals > awayGoals;
+    if (sel.includes("výhra hostů") || sel.includes("vyhra hostu") || sel === "2" || sel === "away" || sel.includes("(2)")) return awayGoals > homeGoals;
+    if (sel.includes("remíza") || sel.includes("remiza") || sel === "x" || sel === "draw") return homeGoals === awayGoals;
+
+    const over = sel.match(/over\s*([0-9]+(?:\.[0-9]+)?)/);
+    if (over) return total > parseFloat(over[1]);
+    const under = sel.match(/under\s*([0-9]+(?:\.[0-9]+)?)/);
+    if (under) return total < parseFloat(under[1]);
+    if (sel.includes("btts") || sel.includes("oba dají gól") || sel.includes("oba daji gol")) return homeGoals > 0 && awayGoals > 0;
+    return null;
+  }
+
+  function findLiveMatch(leg, matches) {
+    const parts = String(leg.match || "").split(/\s+vs\.?\s+| \s*-\s* /i);
+    const home = (parts[0] || "").trim();
+    const away = (parts[1] || "").trim();
+    if (!home || !away) return null;
+    return matches.find(m => sameMatch(home, away, m.home, m.away)) || null;
+  }
+
+  async function refreshLive() {
+    const pending = latestPending();
+    if (!pending) { toast("Žádný aktivní pending tiket.", "err"); return; }
+
+    const button = $("#refreshLiveBtn");
+    setBusy(button, true, "Načítám live skóre…", "🔄 Obnovit live skóre");
+    try {
+      const matches = await fetchEspnMatches();
+      state.live = matches;
+      state.liveTicketId = pending.id;
+      renderActive();
+      toast("Live skóre načteno (" + matches.length + " zápasů).", "ok");
+    } catch (error) {
+      toast("ESPN se nepodařilo načíst: " + error.message, "err");
+    } finally {
+      setBusy($("#refreshLiveBtn"), false, "Načítám live skóre…", "🔄 Obnovit live skóre");
+    }
+  }
+
+  /* ---------- Vykreslování ---------- */
+
+  function renderProgress() {
+    const p = calculateProgression(state.history);
+    const profitClass = p.profit >= 0 ? "pos" : "neg";
+    const profitText = (p.profit >= 0 ? "+" : "") + fmtKc(p.profit);
+
+    const dots = [1, 2, 3, 4].map(n => {
+      let cls = "step-dot";
+      if (n < p.step) cls += " done";
+      if (n === p.step) cls += " current";
+      return '<div class="' + cls + '"></div>';
+    }).join("");
+
+    $("#progressCard").innerHTML =
+      '<div class="progress-head">' +
+        '<div>' +
+          '<span class="step-badge">Krok ' + p.step + '/4</span>' +
+          '<div class="muted small" style="margin-top:8px">' + esc(STEP_LABEL[p.step]) + '</div>' +
+        '</div>' +
+        '<div class="bankroll"><strong>' + fmtKc(p.bank) + '</strong><span>bankroll</span></div>' +
+      '</div>' +
+      '<div class="steps" aria-hidden="true">' + dots + '</div>' +
+      '<div class="stake-row">' +
+        '<div><div class="stake-label">Doporučený vklad</div><strong>' + fmtKc(p.stake) + '</strong></div>' +
+        '<span class="pill">Double AKU</span>' +
+      '</div>' +
+      '<div class="profit"><span>Čistý zisk celkem</span><b class="' + profitClass + '">' + profitText + '</b></div>';
+  }
+
+  function renderTicket() {
+    const section = $("#ticketSection");
+    if (!state.ticket || state.ticket.length !== 2) { section.innerHTML = ""; return; }
+
+    const legsHtml = state.ticket.map((leg, i) =>
+      '<div class="leg">' +
+        '<div class="leg-top">' +
+          '<span class="leg-num">Zápas ' + (i + 1) + '</span>' +
+          '<span class="league">' + esc(leg.league || "Fotbal") + '</span>' +
+          '<button class="mini" data-action="swap-leg" data-leg="' + i + '" title="Vyměnit tento zápas" aria-label="Vyměnit zápas ' + (i + 1) + '">🔄</button>' +
+        '</div>' +
+        '<div class="match">' + esc(leg.match) + '</div>' +
+        '<div class="sel-row">' +
+          '<span class="chip">' + esc(leg.selection) + '</span>' +
+          (leg.api_odds ? '<span class="api-odds">API kurz ' + fmtOdds(leg.api_odds) + '</span>' : '') +
+        '</div>' +
+        '<label class="odds-field">' +
+          '<span>Reálný kurz z Tipsportu</span>' +
+          '<input type="number" inputmode="decimal" step="0.01" min="1.01" max="100" value="' + fmtOdds(leg.odds) + '" data-odds-input="' + i + '" aria-label="Reálný kurz zápasu ' + (i + 1) + '">' +
+        '</label>' +
+      '</div>'
+    ).join("");
+
+    section.innerHTML =
+      '<section class="card ticket-card">' +
+        '<div class="ticket-head">' +
+          '<h2>🎯 Dnešní Double AKU</h2>' +
+          '<span class="pill">2 zápasy</span>' +
+        '</div>' +
+        legsHtml +
+        '<div class="ai-note" id="aiComment" style="display:' + (state.aiComment ? "block" : "none") + '">' +
+          (state.aiComment ? "🤖 " + esc(state.aiComment) : "") +
+        '</div>' +
+        '<div class="totals">' +
+          '<div class="total-box"><span>Celkový kurz</span><strong id="totalOdds">--</strong></div>' +
+          '<div class="total-box"><span>Potenciální výhra</span><strong id="potentialWin">--</strong></div>' +
+        '</div>' +
+        '<div class="warning" id="ticketWarning">⚠️ Součin kurzů je pod 1.80. Vyměň slabší zápas – tiket ale zůstává na 2 zápasech.</div>' +
+        '<div class="ticket-actions">' +
+          '<button class="btn btn-amber" id="swapWeakerBtn" data-action="swap-weaker">🔄 Vyměnit slabší zápas (kurz &lt; 1.80)</button>' +
+          '<button class="btn btn-green" id="saveTicketBtn" data-action="confirm-ticket">✅ Potvrdit a uložit tiket</button>' +
+        '</div>' +
+      '</section>';
+
+    updateTicketSummary();
+  }
+
+  function updateTicketSummary() {
+    if (!state.ticket || state.ticket.length !== 2) return;
+    const o1 = Number(state.ticket[0].odds);
+    const o2 = Number(state.ticket[1].odds);
+    const total = (o1 > 0 && o2 > 0) ? round2(o1 * o2) : 0;
+    const progression = calculateProgression(state.history);
+
+    const totalEl = $("#totalOdds");
+    const winEl = $("#potentialWin");
+    const warning = $("#ticketWarning");
+    const swapBtn = $("#swapWeakerBtn");
+
+    if (totalEl) {
+      totalEl.textContent = total > 0 ? fmtOdds(total) : "--";
+      totalEl.classList.toggle("warn", total > 0 && total < 1.80);
+    }
+    if (winEl) winEl.textContent = total > 0 ? fmtKc(progression.stake * total) : "--";
+    if (warning) warning.classList.toggle("show", total > 0 && total < 1.80);
+
+    if (swapBtn) {
+      const low = total > 0 && total < 1.80;
+      swapBtn.disabled = !low;
+      swapBtn.classList.toggle("attention", low);
+      swapBtn.title = low ? "Vymění slabší zápas tak, aby součin vyšel kolem 2.15" : "Aktivní až při součinu pod 1.80";
+    }
+  }
+
+  function renderActive() {
+    const section = $("#activeSection");
+    const pending = latestPending();
+    if (!pending) { section.innerHTML = ""; return; }
+
+    const progression = calculateProgression(state.history);
+    const legs = (pending.ticket || []).slice(0, 2);
+    const liveData = (state.live && state.liveTicketId === pending.id) ? state.live : null;
+
+    const legsHtml = legs.map((leg, i) => {
+      let stateHtml = '<span class="wait">Klepni na obnovení</span>';
+      if (liveData) {
+        const found = findLiveMatch(leg, liveData);
+        if (!found) {
+          stateHtml = '<span class="wait">Nenalezeno v ESPN</span>';
+        } else {
+          const result = evaluateSelection(leg.selection, found.homeGoals, found.awayGoals);
+          const score = found.homeGoals + ":" + found.awayGoals;
+          if (found.state === "in") {
+            stateHtml = '<span class="score">' + score + '</span>' +
+              '<span class="wait">' + esc(found.clock || "LIVE") + '</span><br>' +
+              (result === true ? '<span class="ok">✅ vychází</span>' : result === false ? '<span class="bad">⚠️ nevychází</span>' : '<span class="wait">—</span>');
+          } else if (found.state === "post") {
+            stateHtml = '<span class="score">' + score + '</span>' +
+              '<span class="' + (result ? "ok" : "bad") + '">' + (result ? "✅ vyšel" : "❌ nevyšel") + '</span>';
+          } else {
+            stateHtml = '<span class="wait">Nezačalo</span><br><span class="wait">' + esc(found.clock || "") + '</span>';
+          }
+        }
+      }
+
+      return '<div class="live-leg">' +
+        '<div><div class="name">' + esc(leg.match) + '</div>' +
+        '<div class="pick">' + esc(leg.selection) + ' · kurz ' + fmtOdds(leg.real_odds || leg.odds) + ' · ' + esc(leg.league || "") + '</div></div>' +
+        '<div class="live-state">' + stateHtml + '</div>' +
+      '</div>';
+    }).join("");
+
+    section.innerHTML =
+      '<section class="card">' +
+        '<div class="ticket-head">' +
+          '<h2>⏳ Aktivní tiket #' + esc(pending.id) + '</h2>' +
+          '<span class="status-badge status-pending">PENDING</span>' +
+        '</div>' +
+        '<div class="muted small" style="margin-bottom:10px">' +
+          esc(pending.date || "") + ' · celkový kurz <b>' + fmtOdds(pending.total_odds) + '</b> · vklad ' + fmtKc(progression.stake) +
+        '</div>' +
+        legsHtml +
+        '<div style="margin-top:12px">' +
+          '<button class="btn btn-ghost" id="refreshLiveBtn" data-action="refresh-live">🔄 Obnovit live skóre</button>' +
+        '</div>' +
+        '<p class="hint" style="margin-top:9px">Skóre z veřejného ESPN API. Hlášení o výkopu a gólech posílá <code>live_tracker.py</code> na Telegram.</p>' +
+      '</section>';
+  }
+
+  function renderHistory() {
+    const section = $("#historySection");
+    const done = state.history
+      .filter(t => t && (t.status === "won" || t.status === "lost"))
+      .sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+
+    let body;
+    if (!state.historyLoaded) {
+      body = '<div class="empty">Historie se nenačetla.</div>';
+    } else if (!done.length) {
+      body = '<div class="empty">Zatím žádné uzavřené tikety. Začínáš na Kroku 1/4 s vkladem 1 000 Kč.</div>';
+    } else {
+      body = done.map(t => {
+        const won = t.status === "won";
+        const legs = (t.ticket || []).slice(0, 2).map(leg =>
+          '<div class="history-leg">• ' + esc(leg.match) + ' – ' + esc(leg.selection) +
+          ' <span class="odds">@ ' + fmtOdds(leg.real_odds || leg.odds) + '</span></div>'
+        ).join("");
+        return '<div class="history-item">' +
+          '<div class="history-top">' +
+            '<span class="date">#' + esc(t.id) + ' · ' + esc(t.date || "") + '</span>' +
+            '<span class="status-badge ' + (won ? "status-won" : "status-lost") + '">' + (won ? "WON" : "LOST") + '</span>' +
+          '</div>' +
+          legs +
+          '<div class="muted small" style="margin-top:7px">Celkový kurz ' + fmtOdds(t.total_odds) + '</div>' +
+        '</div>';
+      }).join("");
+    }
+
+    const source = state.lastSource ? '<div class="muted small" style="margin-top:6px">Zdroj: ' + esc(state.lastSource) + '</div>' : "";
+    section.innerHTML = '<section class="card"><div class="ticket-head"><h2>📜 Uzavřené tikety</h2>' +
+      '<span class="pill">' + done.length + '</span></div>' + body + source + '</section>';
+  }
+
+  function renderAll() {
+    renderProgress();
+    renderTicket();
+    renderActive();
+    renderHistory();
+  }
+
+  /* ---------- Nastavení ---------- */
+
+  function updateKeyStates() {
+    const pairs = [
+      ["#oddsKeyState", LS.odds],
+      ["#geminiKeyState", LS.gemini],
+      ["#tokenState", LS.token]
+    ];
+    for (const [selector, key] of pairs) {
+      const el = $(selector);
+      if (!el) continue;
+      const set = !!lsGet(key).trim();
+      el.textContent = set ? "uloženo" : "chybí";
+      el.className = "key-state " + (set ? "set" : "missing");
+    }
+  }
+
+  function openSettings() {
+    $("#oddsKey").value = lsGet(LS.odds);
+    $("#geminiKey").value = lsGet(LS.gemini);
+    $("#githubToken").value = lsGet(LS.token);
+    updateKeyStates();
+    $("#settingsModal").classList.remove("hidden");
+  }
+
+  function closeSettings() {
+    $("#settingsModal").classList.add("hidden");
+  }
+
+  async function saveSettings() {
+    const oldToken = lsGet(LS.token);
+    lsSet(LS.odds, $("#oddsKey").value.trim());
+    lsSet(LS.gemini, $("#geminiKey").value.trim());
+    lsSet(LS.token, $("#githubToken").value.trim());
+    oddsCache.clear();
+    updateKeyStates();
+    closeSettings();
+    toast("Nastavení uloženo.", "ok");
+
+    if (lsGet(LS.token) !== oldToken) {
+      state.historyLoaded = false;
+      state.sha = null;
+      await loadHistory({ silent: true });
+    }
+  }
+
+  /* ---------- Události ---------- */
+
+  document.addEventListener("click", function (event) {
+    const target = event.target.closest("[data-action]");
+    if (!target) {
+      if (event.target.id === "settingsModal") closeSettings();
+      return;
+    }
+    const action = target.dataset.action;
+
+    if (action === "recommend") recommend();
+    else if (action === "swap-weaker") performSwap(null, false);
+    else if (action === "swap-leg") performSwap(Number(target.dataset.leg), true);
+    else if (action === "confirm-ticket") confirmTicket();
+    else if (action === "refresh-live") refreshLive();
+    else if (action === "reload-history") loadHistory();
+    else if (action === "open-settings") openSettings();
+    else if (action === "close-settings") closeSettings();
+    else if (action === "save-settings") saveSettings();
+  });
+
+  document.addEventListener("input", function (event) {
+    const input = event.target.closest("[data-odds-input]");
+    if (!input || !state.ticket) return;
+    const index = Number(input.dataset.oddsInput);
+    const value = parseFloat(String(input.value).replace(",", "."));
+    if (!Number.isFinite(value)) return;
+    state.ticket[index].odds = value;
+    state.ticket[index].real_odds = value;
+    updateTicketSummary();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") closeSettings();
+  });
+
+  /* ---------- Start ---------- */
+
+  renderProgress();
+  updateKeyStates();
+  loadHistory({ silent: true });
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("./sw.js").catch(function () { /* offline režim není kritický */ });
+    });
+  }
+})();
+</script>
+</body>
+</html>

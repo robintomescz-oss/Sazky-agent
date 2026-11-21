@@ -57,8 +57,52 @@ def send_telegram(message):
         requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID.strip(), "text": plain}, timeout=10)
 
 
+def _apply_double_aku_replacement(ticket, latest_odds):
+    """Zavolá výměnu slabšího zápasu z agent.py. Na tiketu vždy zůstávají přesně 2 zápasy."""
+    try:
+        from agent import format_double_ticket, replace_weak_leg_for_double
+    except Exception as e:
+        print(f"Nepodařilo se načíst výměnu zápasu z agent.py: {e}")
+        return False
+
+    legs = (ticket.get("ticket") or [])[:2]
+    if len(legs) != 2:
+        return False
+
+    try:
+        leg1_odds = float(legs[0].get("real_odds", legs[0].get("odds", 0)) or 0)
+        leg2_odds = float(legs[1].get("real_odds", legs[1].get("odds", 0)) or 0)
+    except (TypeError, ValueError):
+        return False
+
+    # Telegram posílá jen celkový kurz. Pokud nesedí na součin uložených kurzů,
+    # dopočítáme slabší nohu tak, aby odpovídala reálnému celkovému kurzu.
+    stored_product = leg1_odds * leg2_odds
+    if stored_product > 0 and abs(stored_product - latest_odds) > 0.05:
+        kept_odds = max(leg1_odds, leg2_odds)
+        weaker_odds = round(latest_odds / kept_odds, 2) if kept_odds > 0 else 0
+        if weaker_odds > 1.0:
+            if leg1_odds >= leg2_odds:
+                leg2_odds = weaker_odds
+            else:
+                leg1_odds = weaker_odds
+
+    updated = replace_weak_leg_for_double(ticket, leg1_odds, leg2_odds)
+    if not updated or updated is ticket or updated.get("ticket") == ticket.get("ticket"):
+        return False
+
+    ticket["ticket"] = updated["ticket"][:2]
+    ticket["total_odds"] = updated.get("total_odds", latest_odds)
+    ticket["replacement_note"] = updated.get("replacement_note")
+    ticket["analysis_summary"] = updated.get("analysis_summary", ticket.get("analysis_summary"))
+    ticket["status"] = "pending"
+
+    send_telegram(format_double_ticket(ticket))
+    return True
+
+
 def sync_telegram_odds_correction(history):
-    """Zpracuje příkaz /kurz X.XX z Telegramu."""
+    """Zpracuje příkaz /kurz X.XX z Telegramu včetně výměny při kurzu pod 1.80."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return False
     clean_token = TELEGRAM_BOT_TOKEN.replace("[", "").replace("]", "").replace("https://api.telegram.org/bot", "").strip()
@@ -91,12 +135,28 @@ def sync_telegram_odds_correction(history):
             if pending_tickets:
                 target = pending_tickets[-1]
                 old_odds = target.get("total_odds")
-                if old_odds != latest_odds:
+                if old_odds == latest_odds:
+                    return False
+
+                # Kurz pod 1.80 -> vyměníme slabší zápas, ale tiket zůstává na 2 zápasech.
+                if latest_odds < 1.80:
+                    if _apply_double_aku_replacement(target, latest_odds):
+                        print(f"Tiket ID {target.get('id')}: slabší zápas vyměněn, nový kurz {target.get('total_odds')}.")
+                        return True
+
                     target["total_odds"] = latest_odds
-                    send_telegram(
-                        f"✏️ *Korekce kurzu potvrzena*\nTiket ID {target.get('id')}: celkový kurz upraven z `{old_odds}` na reálných `{latest_odds}`."
-                    )
+                    send_telegram("\n".join([
+                        "⚠️ *Korekce kurzu pod 1.80*",
+                        f"Tiket ID {target.get('id')}: reálný kurz `{latest_odds}`.",
+                        "Náhradní zápas se teď nepodařilo najít, tiket zůstává na 2 zápasech s upraveným kurzem."
+                    ]))
                     return True
+
+                target["total_odds"] = latest_odds
+                send_telegram(
+                    f"✏️ *Korekce kurzu potvrzena*\nTiket ID {target.get('id')}: celkový kurz upraven z `{old_odds}` na reálných `{latest_odds}`."
+                )
+                return True
     except Exception as e:
         print(f"Chyba Telegram korekce: {e}")
     return False
