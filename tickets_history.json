@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "id": 1,
+    "date": "2026-11-22 00:06",
+    "total_odds": 2.51,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "Pachuca vs Toluca",
+        "league": "Liga MX",
+        "selection": "Neprohra domácích (1X)",
+        "odds": 1.56,
+        "real_odds": 1.56,
+        "confidence_reason": "Fotbalový favorit s kurzem v bezpečném pásmu (průměr EU sázkových kanceláří).",
+        "commence_time": "2026-11-21T22:50:00Z"
+      },
+      {
+        "match": "Inter Miami CF vs Columbus Crew SC",
+        "league": "MLS",
+        "selection": "Výhra domácích (1)",
+        "odds": 1.61,
+        "real_odds": 1.61,
+        "confidence_reason": "Fotbalový favorit s kurzem v bezpečném pásmu (průměr EU sázkových kanceláří).",
+        "commence_time": "2026-11-21T23:00:00Z"
+      }
+    ],
+    "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
+  }
+]
