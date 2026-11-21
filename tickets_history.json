@@ -142,5 +142,26 @@
       }
     ],
     "summary": "Dvouzápasový tiket stojí na domácích favoritech a cílovém celkovém kurzu. Uvedené kurzy jsou pouze odhady, nikoli ověřená aktuální nabídka."
+  },
+  {
+    "id": 11,
+    "date": "2026-11-21 16:13",
+    "total_odds": 1.98,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "Real Madrid vs Celta Vigo",
+        "league": "La Liga",
+        "selection": "Výhra domácích",
+        "estimated_odds": 1.28
+      },
+      {
+        "match": "Napoli vs Torino",
+        "league": "Serie A",
+        "selection": "Výhra domácích",
+        "estimated_odds": 1.55
+      }
+    ],
+    "summary": "Konzervativní AKU tiket ze dvou nejbezpečnějších zápasů: Real Madrid má proti Celtě Vigo výraznou kvalitativní převahu a domácí prostředí, Napoli je doma proti Turínu rovněž jasný favorit. Odhadovaný celkový kurz se pohybuje kolem 2.00."
   }
 ]
