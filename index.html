@@ -785,7 +785,7 @@
     }
 
     const oddsLists = await Promise.all(dates.map(date =>
-      apiFootballPages("/odds", { date, timezone: "Europe/Prague" }, 8)
+      apiFootballPages("/odds", { date, timezone: "Europe/Prague" }, 3)
     ));
     const oddsByFixture = new Map();
     for (const item of oddsLists.flat()) {
