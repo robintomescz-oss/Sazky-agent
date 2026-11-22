@@ -900,6 +900,8 @@
     else { events=await fetchOddsEvents(enabled,windowHours); oddsCache.set(cacheKey,{at:Date.now(),data:events}); }
     const now=Date.now(), start=now+5*60*1000, limit=now+windowHours*3600000, candidates=[];
     const diagnostics = state.fetchDiagnostics || {};
+    diagnostics.requestedMin = Number(minOdds)||1.10;
+    diagnostics.requestedMax = Number(maxOdds)||1.72;
     diagnostics.allowed = 0;
     diagnostics.candidates = 0;
     for (const event of events) {
@@ -914,18 +916,21 @@
       const {averages,probs}=eventOutcomes(event);
       const sport=(sportKey.startsWith("soccer_")||sportKey.startsWith("apifootball_"))?"soccer":sportKey.startsWith("tennis_")?"tennis":"basketball";
       const options=[];
+      const oddsMin=Math.max(1.01,Number(minOdds)||1.10);
+      const oddsMax=Math.max(oddsMin,Number(maxOdds)||1.72);
       if (sport==="soccer") {
         const h=averages.get(home)||0,d=averages.get("Draw")||0,a=averages.get(away)||0;
         const ph=probs.get(home)||0,pd=probs.get("Draw")||0,pa=probs.get(away)||0;
-        const rangeMin=sport==="soccer"?1.38:1.35;
-        if (h>1&&h>=rangeMin&&h<=1.72) options.push({selection:"Výhra domácích (1)",odds:h,prob:ph});
-        const dc=h>1&&d>1?1/((1/h)+(1/d)):0, pdc=ph+pd;
-        if(dc>=1.38&&dc<=1.72)options.push({selection:"Neprohra domácích (1X)",odds:dc,prob:pdc});
+        if(h>=oddsMin&&h<=oddsMax) options.push({selection:"Výhra domácích (1)",odds:h,prob:ph});
+        if(a>=oddsMin&&a<=oddsMax) options.push({selection:"Výhra hostů (2)",odds:a,prob:pa});
+        const oneX=h>1&&d>1?1/((1/h)+(1/d)):0;
+        const xTwo=d>1&&a>1?1/((1/d)+(1/a)):0;
+        if(oneX>=oddsMin&&oneX<=oddsMax)options.push({selection:"Neprohra domácích (1X)",odds:oneX,prob:ph+pd});
+        if(xTwo>=oddsMin&&xTwo<=oddsMax)options.push({selection:"Neprohra hostů (X2)",odds:xTwo,prob:pd+pa});
       } else {
-        const min=1.35;
         for(const team of [home,away]) {
           const odds=averages.get(team)||0,prob=probs.get(team)||0;
-          if(odds>=min&&odds<=1.72)options.push({selection:(team===home?"Výhra domácích":"Výhra hostů"),odds,prob});
+          if(odds>=oddsMin&&odds<=oddsMax)options.push({selection:(team===home?"Výhra domácích (1)":"Výhra hostů (2)"),odds,prob});
         }
       }
       if (!options.length) continue;
@@ -1000,7 +1005,7 @@
     state.busy = true;
     setBusy(button, true, "Načítám nabídku…", "🎯 Doporučit Double AKU (2 zápasy)");
     try {
-      const pool = await fetchCandidates(1.35, 1.72);
+      const pool = await fetchCandidates(1.10, 1.72);
       pool.sort((a,b)=>(Number(b.probability)||0)-(Number(a.probability)||0));
       state.candidates = pool.slice(0,5);
       state.selectedCandidates = [];
@@ -1010,7 +1015,7 @@
         let reason = "API neposlalo žádné události s použitelnými kurzy.";
         if (Number(d.prematchRows) + Number(d.liveRows) > 0 && !d.withOdds) reason = "API vrátilo data, ale žádná událost nemá podporovaný trh Match Winner (1/X/2).";
         else if (d.withOdds > 0 && !d.inWindow) reason = "Události s kurzy existují, ale žádná nezačíná v nastaveném okně a není právě live.";
-        else if (d.inWindow > 0 && !d.candidates) reason = "Události v okně mají kurzy, ale žádný favorit neprošel filtrem 1.38–1.72.";
+        else if (d.inWindow > 0 && !d.candidates) reason = "Události v okně mají kurzy, ale žádný favorit neprošel filtrem zadaných kurzů "+(d.requestedMin||"")+"–"+(d.requestedMax||"")+".";
         throw new Error(reason + " Diagnostika API-Football: před zápasem " + (d.prematchRows||0) + ", live " + (d.liveRows||0) + ", s trhem " + (d.withOdds||0) + ", v okně " + (d.inWindow||0) + ", povolený sport " + (d.allowed||0) + ", vhodné tipy " + (d.candidates||0) + ".");
       }
       renderCandidates();
@@ -1300,6 +1305,7 @@
 
     if (sel.includes("1x") || sel.includes("neprohra domácích") || sel.includes("neprohra domacich")) return homeGoals >= awayGoals;
     if (sel.includes("x2") || sel.includes("neprohra hostů") || sel.includes("neprohra hostu")) return awayGoals >= homeGoals;
+    if (sel.includes("12") || sel.includes("vítěz bez remízy") || sel.includes("vitez bez remizy")) return homeGoals !== awayGoals;
     if (sel.includes("výhra domácích") || sel.includes("vyhra domacich") || sel === "1" || sel === "home" || sel.includes("(1)")) return homeGoals > awayGoals;
     if (sel.includes("výhra hostů") || sel.includes("vyhra hostu") || sel === "2" || sel === "away" || sel.includes("(2)")) return awayGoals > homeGoals;
     if (sel.includes("remíza") || sel.includes("remiza") || sel === "x" || sel === "draw") return homeGoals === awayGoals;
