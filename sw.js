@@ -1,5 +1,5 @@
 /* Double AKU PWA – jednoduchý offline cache pro app shell. */
-const CACHE_NAME = "double-aku-v4-multisport";
+const CACHE_NAME = "double-aku-v5-multisport";
 const APP_SHELL = [
   "./",
   "./index.html",
