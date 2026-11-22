@@ -310,6 +310,37 @@ def fetch_live_and_recent_matches():
     return matches
 
 
+def fetch_odds_score_events(tickets):
+    if not ODDS_API_KEY:
+        return []
+    sport_keys = sorted({str(leg.get("sport_key")) for ticket in tickets for leg in ticket.get("ticket", []) if leg.get("sport_key")})
+    matches = []
+    for sport_key in sport_keys:
+        url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/scores/"
+        try:
+            res = requests.get(url, params={"apiKey": ODDS_API_KEY.strip(), "daysFrom": 2}, timeout=10)
+            if res.status_code != 200:
+                print(f"The Odds API scores {sport_key}: HTTP {res.status_code}")
+                continue
+            for event in res.json():
+                scores = {str(item.get("name", "")): item.get("score") for item in event.get("scores", [])}
+                home, away = event.get("home_team", ""), event.get("away_team", "")
+                try:
+                    home_score, away_score = int(scores[home]), int(scores[away])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                matches.append({
+                    "home": home, "away": away,
+                    "state": "post" if event.get("completed") else "in",
+                    "home_goals": home_score, "away_goals": away_score,
+                    "clock": "KONEC" if event.get("completed") else "LIVE",
+                    "sport": "tennis" if sport_key.startswith("tennis_") else "basketball" if sport_key.startswith("basketball_") else "soccer"
+                })
+        except Exception as exc:
+            print(f"The Odds API scores failed for {sport_key}: {exc}")
+    return matches
+
+
 def evaluate_selection(selection, home_goals, away_goals):
     sel = selection.lower().strip()
     total_goals = home_goals + away_goals
@@ -411,7 +442,8 @@ def run_live_tracker():
         return
 
     live_data = fetch_live_and_recent_matches()
-    print(f"Načteno {len(live_data)} zápasů z live feedu.")
+    live_data.extend(fetch_odds_score_events(pending_tickets))
+    print(f"Načteno {len(live_data)} zápasů z ESPN a The Odds API.")
 
     for ticket in pending_tickets:
         items = ticket.get("ticket", [])
