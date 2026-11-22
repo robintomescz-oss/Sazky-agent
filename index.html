@@ -325,7 +325,7 @@
 
   <section>
     <button class="btn btn-primary" data-action="recommend" id="recommendBtn">🎯 Doporučit dnešní Double AKU</button>
-    <p class="hint">Stáhne kurzy z The Odds API, vybere dva favority (kurz 1.10–1.65 na tip) a cílí na celkový kurz 2.00.</p>
+    <p class="hint">Načte zápasy a předzápasové kurzy z API-Football, vybere dva favority (kurz 1.10–1.65 na tip) a cílí na celkový kurz 2.00.</p>
   </section>
 
   <section id="ticketSection"></section>
@@ -354,9 +354,9 @@
     <p class="muted small">Klíče se ukládají pouze do tohoto zařízení (<code>localStorage</code>) a nikam je neposíláme kromě volání příslušných API.</p>
 
     <div class="field">
-      <label for="oddsKey">ODDS_API_KEY <span class="key-state" id="oddsKeyState"></span></label>
-      <input id="oddsKey" type="password" autocomplete="off" spellcheck="false" placeholder="klíč z the-odds-api.com">
-      <div class="help">Pro stahování fotbalové nabídky a výměnu zápasů.</div>
+      <label for="oddsKey">API_FOOTBALL_KEY <span class="key-state" id="oddsKeyState"></span></label>
+      <input id="oddsKey" type="password" autocomplete="off" spellcheck="false" placeholder="klíč z api-football.com">
+      <div class="help">Pro načtení fotbalových zápasů a předzápasových kurzů.</div>
     </div>
 
     <div class="field">
@@ -393,7 +393,7 @@
   const BRANCH = "main";
   const HISTORY_PATH = "tickets_history.json";
   const BASE_STAKE = 1000;
-  const LS = { odds: "ODDS_API_KEY", gemini: "GEMINI_API_KEY", token: "GITHUB_TOKEN" };
+  const LS = { odds: "API_FOOTBALL_KEY", gemini: "GEMINI_API_KEY", token: "GITHUB_TOKEN" };
 
   const state = {
     history: [],
@@ -708,140 +708,155 @@
     return shared.length >= 2 && Math.max(...shared.map(t => t.length)) >= 3;
   }
 
+  async function apiFootballRequest(path, params) {
+    const key = lsGet(LS.odds).trim();
+    if (!key) throw new Error("Chybí API-Football klíč – otevři nastavení ⚙️");
+    const url = new URL("https://v3.football.api-sports.io" + path);
+    for (const [name, value] of Object.entries(params || {})) {
+      url.searchParams.set(name, String(value));
+    }
+    const response = await fetch(url.toString(), {
+      headers: { "x-apisports-key": key },
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new Error("API-Football odmítlo klíč nebo tento plán nemá přístup k požadovaným kurzům.");
+      }
+      if (response.status === 429) throw new Error("API-Football: dosažen limit požadavků.");
+      throw new Error("API-Football HTTP " + response.status);
+    }
+    const payload = await response.json();
+    const apiErrors = payload && payload.errors;
+    if (apiErrors && (Array.isArray(apiErrors) ? apiErrors.length : Object.keys(apiErrors).length)) {
+      const detail = Array.isArray(apiErrors) ? apiErrors.join("; ") : Object.values(apiErrors).join("; ");
+      throw new Error("API-Football: " + detail);
+    }
+    return payload;
+  }
+
+  async function apiFootballPages(path, params, maxPages) {
+    const first = await apiFootballRequest(path, Object.assign({}, params, { page: 1 }));
+    const pages = Math.min(Math.max(1, Number(first.paging && first.paging.total) || 1), maxPages || 8);
+    const rows = Array.isArray(first.response) ? first.response.slice() : [];
+    for (let page = 2; page <= pages; page++) {
+      const next = await apiFootballRequest(path, Object.assign({}, params, { page }));
+      if (Array.isArray(next.response)) rows.push(...next.response);
+    }
+    return rows;
+  }
+
+  function localDateOffset(days) {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    const pad = n => String(n).padStart(2, "0");
+    return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate());
+  }
+
   async function fetchCandidates(minOdds, maxOdds, exclude) {
     const key = lsGet(LS.odds).trim();
-    if (!key) throw new Error("Chybí ODDS_API_KEY – otevři nastavení ⚙️");
+    if (!key) throw new Error("Chybí API-Football klíč – otevři nastavení ⚙️");
 
-    const cacheKey = minOdds + "-" + maxOdds;
+    const cacheKey = "api-football-" + minOdds + "-" + maxOdds;
     const cached = oddsCache.get(cacheKey);
     if (cached && Date.now() - cached.at < 15 * 60 * 1000) {
       return filterExcluded(cached.data, exclude);
     }
 
-    const apiBase = "https://api.the-odds-api.com/v4";
     const now = Date.now();
     const limit = now + 48 * 60 * 60 * 1000;
-    const apiUrl = (path) => {
-      const url = new URL(apiBase + path);
-      url.searchParams.set("apiKey", key);
-      return url;
-    };
-    const checkResponse = async (res) => {
-      if (res.ok) return;
-      if (res.status === 401) throw new Error("The Odds API: neplatný ODDS_API_KEY");
-      if (res.status === 429) throw new Error("The Odds API: došly kredity nebo příliš mnoho požadavků");
-      let detail = "";
-      try { detail = (await res.text()).slice(0, 120); } catch (e) { /* ignore */ }
-      throw new Error("The Odds API " + res.status + (detail ? ": " + detail : ""));
-    };
-
-    // Endpoint /sports/upcoming/odds vrací pouze osm nejbližších zápasů napříč sporty.
-    // Nejprve proto bezplatně zjistíme fotbalové ligy s dnešními zápasy a až pak stahujeme kurzy.
-    const sportsResponse = await fetch(apiUrl("/sports"), { cache: "no-store" });
-    await checkResponse(sportsResponse);
-    const sports = (await sportsResponse.json()).filter(s =>
-      String(s.key || "").startsWith("soccer_") && s.active !== false
-    );
-    if (!sports.length) throw new Error("The Odds API teď nehlásí žádnou aktivní fotbalovou soutěž.");
-
-    const eventLookups = [];
-    for (let i = 0; i < sports.length; i += 8) {
-      const batch = await Promise.allSettled(sports.slice(i, i + 8).map(async sport => {
-        const response = await fetch(apiUrl("/sports/" + encodeURIComponent(sport.key) + "/events"), { cache: "no-store" });
-        await checkResponse(response);
-        const events = await response.json();
-        const upcoming = (Array.isArray(events) ? events : []).filter(ev => {
-          const time = Date.parse(ev.commence_time || "");
-          return Number.isFinite(time) && time >= now && time <= limit;
-        });
-        return { sport, events: upcoming };
-      }));
-      eventLookups.push(...batch);
+    const dates = [0, 1, 2].map(localDateOffset);
+    const fixtureLists = await Promise.all(dates.map(date =>
+      apiFootballPages("/fixtures", { date, timezone: "Europe/Prague" }, 8)
+    ));
+    const fixtures = fixtureLists.flat();
+    const fixturesById = new Map();
+    for (const fixture of fixtures) {
+      const f = fixture.fixture || {};
+      const teams = fixture.teams || {};
+      const kickoff = Date.parse(f.date || "");
+      const status = String((f.status || {}).short || "");
+      if (!Number.isFinite(kickoff) || kickoff < now || kickoff > limit || status !== "NS") continue;
+      if (!teams.home || !teams.away) continue;
+      fixturesById.set(String(f.id), fixture);
     }
 
-    const leagues = eventLookups
-      .filter(x => x.status === "fulfilled" && x.value.events.length)
-      .map(x => x.value)
-      .sort((a, b) => b.events.length - a.events.length ||
-        Date.parse(a.events[0].commence_time) - Date.parse(b.events[0].commence_time));
-    if (!leagues.length) {
-      const failure = eventLookups.find(x => x.status === "rejected");
-      if (failure) throw failure.reason;
-      throw new Error("The Odds API nevrátilo fotbalový zápas s výkopem během příštích 48 hodin.");
+    const oddsLists = await Promise.all(dates.map(date =>
+      apiFootballPages("/odds", { date, timezone: "Europe/Prague" }, 8)
+    ));
+    const oddsByFixture = new Map();
+    for (const item of oddsLists.flat()) {
+      const id = String((item.fixture || {}).id || "");
+      if (id && fixturesById.has(id)) oddsByFixture.set(id, item);
     }
-
-    // Omezíme placené dotazy na šest nejvytíženějších soutěží s blížícím se zápasem.
-    const selectedLeagues = leagues.slice(0, 6);
-    const oddsResults = await Promise.allSettled(selectedLeagues.map(async entry => {
-      const url = apiUrl("/sports/" + encodeURIComponent(entry.sport.key) + "/odds");
-      url.searchParams.set("regions", "eu");
-      url.searchParams.set("markets", "h2h");
-      url.searchParams.set("oddsFormat", "decimal");
-      const response = await fetch(url, { cache: "no-store" });
-      await checkResponse(response);
-      return await response.json();
-    }));
 
     const candidates = [];
-    let successfulOddsFeeds = 0;
-    let firstOddsError = null;
-    for (const result of oddsResults) {
-      if (result.status !== "fulfilled") {
-        firstOddsError = firstOddsError || result.reason;
-        continue;
-      }
-      successfulOddsFeeds++;
-      for (const ev of (Array.isArray(result.value) ? result.value : [])) {
-        const commence = Date.parse(ev.commence_time || "");
-        if (!String(ev.sport_key || "").startsWith("soccer_") ||
-            !Number.isFinite(commence) || commence < now || commence > limit) continue;
+    const optionLabels = {
+      home: "Výhra domácích (1)",
+      draw: "Remíza (X)",
+      away: "Výhra hostů (2)",
+      homeDraw: "Neprohra domácích (1X)",
+      drawAway: "Neprohra hostů (X2)"
+    };
+    const optionValues = {
+      home: ["home", "1"],
+      draw: ["draw", "x"],
+      away: ["away", "2"],
+      homeDraw: ["home/draw", "home or draw", "1x"],
+      drawAway: ["draw/away", "away/draw", "draw or away", "x2"]
+    };
 
-        const home = ev.home_team || "";
-        const away = ev.away_team || "";
-        if (!home || !away) continue;
+    for (const [id, oddsItem] of oddsByFixture) {
+      const fixture = fixturesById.get(id);
+      const f = fixture.fixture || {};
+      const teams = fixture.teams || {};
+      const home = teams.home.name || "";
+      const away = teams.away.name || "";
+      if (!home || !away) continue;
+      const marketOdds = { home: [], draw: [], away: [], homeDraw: [], drawAway: [] };
 
-        const homePrices = [], drawPrices = [], awayPrices = [];
-        for (const bookmaker of ev.bookmakers || []) {
-          for (const market of bookmaker.markets || []) {
-            if (market.key !== "h2h") continue;
-            const prices = {};
-            for (const outcome of market.outcomes || []) prices[outcome.name] = Number(outcome.price);
-            const h = Number(prices[home]), d = Number(prices.Draw), a = Number(prices[away]);
-            if (Number.isFinite(h) && Number.isFinite(d) && Number.isFinite(a) && h > 1 && d > 1 && a > 1) {
-              homePrices.push(h); drawPrices.push(d); awayPrices.push(a);
+      for (const bookmaker of oddsItem.bookmakers || []) {
+        for (const bet of bookmaker.bets || []) {
+          const name = String(bet.name || "").toLowerCase();
+          if (!(name.includes("match winner") || name.includes("fulltime result") ||
+                name.includes("full-time result") || name === "1x2" || name.includes("double chance"))) continue;
+          for (const value of bet.values || []) {
+            if (value.suspended) continue;
+            const normalized = String(value.value || "").toLowerCase().replace(/\\s+/g, " ").trim();
+            const price = Number(String(value.odd || "").replace(",", "."));
+            if (!Number.isFinite(price) || price <= 1) continue;
+            for (const [kind, aliases] of Object.entries(optionValues)) {
+              if (aliases.includes(normalized)) marketOdds[kind].push(price);
             }
           }
         }
-        if (!homePrices.length) continue;
+      }
 
-        const avg = list => list.reduce((sum, value) => sum + value, 0) / list.length;
-        const avgHome = round2(avg(homePrices));
-        const avgDraw = round2(avg(drawPrices));
-        const avgAway = round2(avg(awayPrices));
-        const dc1x = round2(1 / ((1 / avgHome) + (1 / avgDraw)));
-        const dcx2 = round2(1 / ((1 / avgAway) + (1 / avgDraw)));
-        const base = {
-          home, away, match: home + " vs " + away,
-          league: ev.sport_title || "Fotbal",
-          commence: ev.commence_time,
-          context: "1: " + avgHome + " | X: " + avgDraw + " | 2: " + avgAway + " | 1X: " + dc1x + " | X2: " + dcx2
-        };
-        const options = [
-          ["Výhra domácích (1)", avgHome],
-          ["Remíza (X)", avgDraw],
-          ["Výhra hostů (2)", avgAway],
-          ["Neprohra domácích (1X)", dc1x],
-          ["Neprohra hostů (X2)", dcx2]
-        ];
-        for (const [selection, odds] of options) {
-          if (odds >= minOdds && odds <= maxOdds) {
-            candidates.push(Object.assign({}, base, { selection, odds }));
-          }
-        }
+      const base = {
+        home, away, match: home + " vs " + away,
+        league: (fixture.league && fixture.league.name) || (oddsItem.league && oddsItem.league.name) || "Fotbal",
+        commence: f.date || "",
+        fixture_id: f.id
+      };
+      for (const [kind, prices] of Object.entries(marketOdds)) {
+        if (!prices.length) continue;
+        const odds = round2(prices.reduce((sum, value) => sum + value, 0) / prices.length);
+        if (odds < minOdds || odds > maxOdds) continue;
+        candidates.push(Object.assign({}, base, {
+          selection: optionLabels[kind],
+          odds,
+          confidence_reason: "Favorit podle průměrného kurzu API-Football."
+        }));
       }
     }
 
-    if (!successfulOddsFeeds && firstOddsError) throw firstOddsError;
+    if (!fixturesById.size) {
+      throw new Error("API-Football nenašlo neodehraný fotbalový zápas v příštích 48 hodinách.");
+    }
+    if (!oddsByFixture.size) {
+      throw new Error("API-Football zatím nemá předzápasové kurzy pro dnešní zápasy. U některých soutěží jsou kurzy dostupné až 1–14 dní před výkopem.");
+    }
+
     oddsCache.set(cacheKey, { at: Date.now(), data: candidates });
     return filterExcluded(candidates, exclude);
   }
@@ -896,7 +911,7 @@
     if (state.busy) return;
     const button = $("#recommendBtn");
     state.busy = true;
-    setBusy(button, true, "Stahuji kurzy…", "🎯 Doporučit dnešní Double AKU");
+    setBusy(button, true, "Načítám zápasy a kurzy…", "🎯 Doporučit dnešní Double AKU");
 
     try {
       const pool = await fetchCandidates(1.10, 1.65);
@@ -922,7 +937,7 @@
       }).catch(() => { /* AI je volitelná */ });
     } catch (error) {
       toast(error.message, "err");
-      if (/ODDS_API_KEY/.test(error.message)) openSettings();
+      if (/API-Football klíč/.test(error.message)) openSettings();
     } finally {
       state.busy = false;
       setBusy(button, false, "Stahuji kurzy…", "🎯 Doporučit dnešní Double AKU");
