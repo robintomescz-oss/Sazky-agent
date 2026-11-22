@@ -1489,7 +1489,7 @@
 
   async function saveSettings() {
     const oldToken = lsGet(LS.token);
-    REPO = ($("#repoName").value.trim() || REPO_DEFAULT).replace(/^https?:\\/\\/github\\.com\\//, "").replace(/\\.git$/, "");
+    REPO = ($("#repoName").value.trim() || REPO_DEFAULT).replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "");
     localStorage.setItem("GITHUB_REPO", REPO);
     BASE_STAKE = Math.max(1, Number($("#baseStake").value) || 1000);
     localStorage.setItem("BASE_STAKE", String(BASE_STAKE));
