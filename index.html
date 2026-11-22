@@ -737,8 +737,7 @@
 
   async function apiFootballPages(path, params, maxPages) {
     const isPaged = path === "/odds";
-    const firstParams = isPaged ? Object.assign({}, params, { page: 1 }) : params;
-    const first = await apiFootballRequest(path, firstParams);
+    const first = await apiFootballRequest(path, params);
     const rows = Array.isArray(first.response) ? first.response.slice() : [];
     if (!isPaged) return rows;
 
