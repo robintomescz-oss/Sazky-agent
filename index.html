@@ -327,7 +327,8 @@
     <h2>🏟️ Sporty a časové okno</h2>
     <div class="sport-filters">
       <label><input type="checkbox" data-sport-filter="soccer" checked> ⚽ Fotbal</label>
-      
+      <label><input type="checkbox" data-sport-filter="basketball" checked> 🏀 Basketbal</label>
+      <label><input type="checkbox" data-sport-filter="tennis" checked> 🎾 Tenis</label>
     </div>
     <label class="field"><span>Časové okno (max. 5 hodin)</span>
       <select id="timeWindow"><option value="2">⏱️ Do 2 hodin</option><option value="5">📅 Do 5 hodin</option></select>
@@ -335,7 +336,7 @@
   </section>
   <section>
     <button class="btn btn-primary" data-action="recommend" id="recommendBtn">🎯 Doporučit Double AKU (2 zápasy)</button>
-    <p class="hint">API-Football: fotbalové předzápasové i live kurzy v okně do 5 hodin. Double AKU vybírá dvě vhodné události podle odhadované pravděpodobnosti.</p>
+    <p class="hint">API-Sports pro fotbal a basketbal, API Tennis pro tenis. Hledá události do 5 hodin a řadí tipy podle odhadované pravděpodobnosti.</p>
   </section>
 
   <section id="ticketSection"></section>
@@ -366,7 +367,13 @@
     <div class="field">
       <label for="oddsKey">API_FOOTBALL_KEY <span class="key-state" id="oddsKeyState"></span></label>
       <input id="oddsKey" type="password" autocomplete="off" spellcheck="false" placeholder="klíč z api-football.com">
-      <div class="help">API-Football – fotbalové zápasy, kurzy a live skóre.</div>
+      <div class="help">API-Sports – fotbal a basketbal. Pro basketbal musí být váš API-Sports účet aktivní také pro produkt API-Basketball.</div>
+    </div>
+
+    <div class="field">
+      <label for="tennisKey">API_TENNIS_KEY <span class="key-state" id="tennisKeyState"></span></label>
+      <input id="tennisKey" type="password" autocomplete="off" spellcheck="false" placeholder="klíč z api-tennis.com">
+      <div class="help">Samostatný klíč a plán pro tenisové zápasy a kurzy.</div>
     </div>
 
     <div class="field">
@@ -409,7 +416,7 @@
   const BRANCH = "main";
   const HISTORY_PATH = "tickets_history.json";
   let BASE_STAKE = Math.max(1, Number(localStorage.getItem("BASE_STAKE")) || 1000);
-  const LS = { odds: "API_FOOTBALL_KEY", gemini: "GEMINI_API_KEY", token: "GITHUB_TOKEN" };
+  const LS = { odds: "API_FOOTBALL_KEY", tennis: "API_TENNIS_KEY", gemini: "GEMINI_API_KEY", token: "GITHUB_TOKEN" };
 
   const state = {
     history: [],
@@ -428,8 +435,10 @@
 
   const oddsCache = new Map();
   try {
-    const chosen = JSON.parse(localStorage.getItem("SPORT_FILTERS") || '["soccer"]');
+    const storedFilters = JSON.parse(localStorage.getItem("SPORT_FILTERS") || "null");
+    const chosen = localStorage.getItem("SPORT_FILTERS_V2") ? storedFilters : ["soccer", "basketball", "tennis"];
     document.querySelectorAll("[data-sport-filter]").forEach(el => { el.checked = chosen.includes(el.dataset.sportFilter); });
+    localStorage.setItem("SPORT_FILTERS_V2", "1");
     $("#timeWindow").value = Math.min(5, Number(localStorage.getItem("TIME_WINDOW")) || 2);
   } catch (e) { /* použij výchozí volby */ }
 
@@ -737,7 +746,11 @@
 
   async function fetchOddsEvents(enabled, windowHours) {
     const key = lsGet(LS.odds).trim();
-    if (!key) throw new Error("Chybí API-Football klíč – otevři Nastavení.");
+    const extraEvents = [];
+    if (enabled.includes("basketball")) extraEvents.push(...await fetchBasketballEvents(windowHours, key));
+    if (enabled.includes("tennis")) extraEvents.push(...await fetchTennisEvents(windowHours));
+    if (!enabled.includes("soccer")) return extraEvents;
+    if (!key) throw new Error("Chybí API-Sports klíč pro fotbal/basketbal – otevři Nastavení.");
     const base = "https://v3.football.api-sports.io";
 
     async function request(path, params) {
@@ -860,7 +873,31 @@
       return matchesWindow;
     });
     state.fetchDiagnostics = Object.assign(diagnostics, { events: inWindow.length });
-    return inWindow;
+    return inWindow.concat(extraEvents);
+  }
+
+  async function fetchBasketballEvents(windowHours, key) {
+    if (!key) throw new Error("Chybí API-Sports klíč pro basketbal – nastav API_FOOTBALL_KEY.");
+    const base="https://v1.basketball.api-sports.io";
+    async function request(path,params){const url=new URL(base+"/"+path);for(const [k,v] of Object.entries(params||{}))url.searchParams.set(k,String(v));let response;try{response=await fetch(url.toString(),{headers:{"x-apisports-key":key},cache:"no-store"});}catch(e){throw new Error("API-Basketball se nepodařilo načíst (síť/CORS).");}let data={};try{data=await response.json();}catch(e){}const errors=data.errors;if(!response.ok||errors&&(Array.isArray(errors)?errors.length:Object.keys(errors).length)){const detail=errors?(Array.isArray(errors)?errors.join("; "):Object.values(errors).join("; ")):"HTTP "+response.status;throw new Error("API-Basketball: "+String(detail).slice(0,180));}return data;}
+    const now=Date.now(),end=now+Math.min(5,Number(windowHours)||5)*3600000,dates=[localDateOffset(0)];if(new Date(end).toDateString()!==new Date(now).toDateString())dates.push(localDateOffset(1));
+    const games=[];for(const date of dates){const data=await request("games",{date,timezone:"Europe/Prague"});games.push(...(data.response||[]));}
+    const upcoming=games.map(row=>({row,at:Date.parse(row.game&&row.game.date||"")})).filter(x=>Number.isFinite(x.at)&&x.at>=now+300000&&x.at<=end&&String(x.row.game&&x.row.game.status&&x.row.game.status.short||"NS")==="NS").sort((a,b)=>a.at-b.at).slice(0,8);
+    const events=[];for(const item of upcoming){const row=item.row,game=row.game||{},teams=row.teams||{};if(!game.id||!teams.home?.name||!teams.away?.name)continue;const oddsData=await request("odds",{game:game.id});const source=(oddsData.response||[]).find(x=>Array.isArray(x.bookmakers)&&x.bookmakers.length);if(!source)continue;const bookmakers=[];for(const bookmaker of source.bookmakers||[]){const markets=[];for(const bet of bookmaker.bets||[]){if(!/home\/away|winner|moneyline/i.test(String(bet.name||"")))continue;const outcomes=[];for(const value of bet.values||[]){const label=String(value.value||"").trim(),odd=Number(String(value.odd||"").replace(",","."));if(!(odd>1))continue;const name=/^home$/i.test(label)?teams.home.name:/^away$/i.test(label)?teams.away.name:"";if(name)outcomes.push({name,price:odd});}if(outcomes.length>=2)markets.push({key:"h2h",outcomes});}if(markets.length)bookmakers.push({title:bookmaker.name||"",markets});}if(bookmakers.length)events.push({id:"basketball_"+game.id,fixture_id:game.id,home_team:teams.home.name,away_team:teams.away.name,commence_time:game.date,sport_title:row.league&&row.league.name||"Basketbal",sport_key:"basketball_api",bookmakers,is_live:false});}
+    return events;
+  }
+
+  async function fetchTennisEvents(windowHours) {
+    const key=lsGet(LS.tennis).trim();if(!key)throw new Error("Chybí API Tennis klíč – nastav API_TENNIS_KEY v Nastavení.");const base="https://api.api-tennis.com/tennis/";
+    async function request(method,params){const url=new URL(base);url.searchParams.set("method",method);url.searchParams.set("APIkey",key);for(const [k,v] of Object.entries(params||{}))url.searchParams.set(k,String(v));let response;try{response=await fetch(url.toString(),{cache:"no-store"});}catch(e){throw new Error("API Tennis se nepodařilo načíst (síť/CORS).");}let data={};try{data=await response.json();}catch(e){}if(!response.ok||data.success===0)throw new Error("API Tennis: "+String(data.error||data.msg||("HTTP "+response.status)).slice(0,160));return data.result||{};}
+    const now=Date.now(),end=now+Math.min(5,Number(windowHours)||5)*3600000,today=localDateOffset(0),tomorrow=localDateOffset(1);
+    const [fixtureData,prematchData,liveData,liveOddsData]=await Promise.all([request("get_fixtures",{date_start:today,date_stop:tomorrow,timezone:"Europe/Prague"}),request("get_odds",{date_start:today,date_stop:tomorrow}),request("get_livescore",{timezone:"Europe/Prague"}),request("get_live_odds",{timezone:"Europe/Prague"})]);
+    const fixtures=Array.isArray(fixtureData)?fixtureData:Object.values(fixtureData||{}),liveById=new Map((Array.isArray(liveData)?liveData:[]).map(x=>[String(x.event_key),x])),liveOddsById=liveOddsData||{},events=[];
+    const average=obj=>{const vals=Object.values(obj||{}).map(v=>Number(String(v).replace(",","."))).filter(v=>v>1);return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;};
+    for(const row of fixtures){const id=String(row.event_key||"");if(!id)continue;const date=String(row.event_date||""),time=String(row.event_time||"00:00"),at=Date.parse(date+"T"+time+":00"),live=liveById.has(id)||String(row.event_live||"0")==="1";if(!live&&(!Number.isFinite(at)||at<now+300000||at>end))continue;const home=String(row.event_first_player||""),away=String(row.event_second_player||"");if(!home||!away)continue;
+      const oddsRow=(prematchData&&prematchData[id])||{},market=oddsRow["Home/Away"]||oddsRow["Match Winner"]||{};let h=average(market.Home),a=average(market.Away);const liveRow=liveOddsById[id];if(liveRow&&Array.isArray(liveRow.live_odds))for(const odd of liveRow.live_odds){if(!/match winner|moneyline|home\/away/i.test(String(odd.odd_name||"")))continue;const v=Number(odd.value);if(!(v>1))continue;if(/^1(\/|$)/.test(String(odd.type||"")))h=v;else if(/^2(\/|$)/.test(String(odd.type||"")))a=v;}if(!(h>1&&a>1))continue;
+      events.push({id:"tennis_"+id,fixture_id:id,home_team:home,away_team:away,commence_time:new Date(Number.isFinite(at)?at:now).toISOString(),sport_title:row.tournament_name||row.event_type_type||"Tenis",sport_key:"tennis_api",bookmakers:[{title:"API Tennis",markets:[{key:"h2h",outcomes:[{name:home,price:h},{name:away,price:a}]}]}],is_live:live});}
+    return events;
   }
   function selectedSports() {
     return [...document.querySelectorAll("[data-sport-filter]:checked")].map(el => el.dataset.sportFilter);
@@ -875,11 +912,8 @@
       const prioritySoccer = new Set(["soccer_epl","soccer_spain_la_liga","soccer_germany_bundesliga","soccer_italy_serie_a","soccer_france_ligue_one","soccer_uefa_champs_league","soccer_uefa_europa_league","soccer_uefa_europa_conference_league","soccer_netherlands_eredivisie","soccer_portugal_primeira_liga","soccer_usa_mls"]);
       return prioritySoccer.has(k);
     }
-    if (k.startsWith("tennis_")) {
-      if (!enabled.includes("tennis") || /\bitf\b|challenger|futures/.test(k + " " + t)) return false;
-      return /atp|wta|grand slam|australian open|roland garros|french open|wimbledon|us open/.test(k + " " + t);
-    }
-    if (k.startsWith("basketball_")) return enabled.includes("basketball") && /nba|euroleague/.test(k + " " + t);
+    if (k.startsWith("tennis_api") || k.startsWith("tennis_")) return enabled.includes("tennis");
+    if (k.startsWith("basketball_")) return enabled.includes("basketball");
     return false;
   }
 
@@ -1635,6 +1669,7 @@
   function updateKeyStates() {
     const pairs = [
       ["#oddsKeyState", LS.odds],
+      ["#tennisKeyState", LS.tennis],
       ["#geminiKeyState", LS.gemini],
       ["#tokenState", LS.token]
     ];
@@ -1651,6 +1686,7 @@
     $("#repoName").value = REPO;
     $("#baseStake").value = String(BASE_STAKE);
     $("#oddsKey").value = lsGet(LS.odds);
+    $("#tennisKey").value = lsGet(LS.tennis);
     $("#geminiKey").value = lsGet(LS.gemini);
     $("#githubToken").value = lsGet(LS.token);
     updateKeyStates();
@@ -1668,6 +1704,7 @@
     BASE_STAKE = Math.max(1, Number($("#baseStake").value) || 1000);
     localStorage.setItem("BASE_STAKE", String(BASE_STAKE));
     lsSet(LS.odds, $("#oddsKey").value.trim());
+    lsSet(LS.tennis, $("#tennisKey").value.trim());
     lsSet(LS.gemini, $("#geminiKey").value.trim());
     lsSet(LS.token, $("#githubToken").value.trim());
     oddsCache.clear();
