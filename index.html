@@ -494,11 +494,14 @@
   /* ---------- Výpočet progrese a bankrollu ---------- */
 
   function calculateProgression(history) {
-    const evaluated = (history || []).filter(t => t && (t.status === "won" || t.status === "lost"));
+    const rows = history || [];
+    const evaluated = rows.filter(t => t && (t.status === "won" || t.status === "lost"));
+    const savedBase = [...rows].reverse().find(t => Number(t && t.base_stake) > 0);
+    const baseStake = savedBase ? Number(savedBase.base_stake) : baseStake;
     let step = 1;
-    let stake = BASE_STAKE;
+    let stake = baseStake;
     let k2Payout = 0;
-    let bank = BASE_STAKE;
+    let bank = baseStake;
 
     for (const ticket of evaluated) {
       const won = ticket.status === "won";
@@ -510,11 +513,11 @@
 
       if (step === 1) {
         if (won) {
-          const net = BASE_STAKE * (odds - 1);
+          const net = baseStake * (odds - 1);
           stake = round2(net / 2);
           step = 2;
         } else {
-          stake = BASE_STAKE;
+          stake = baseStake;
           step = 1;
         }
       } else if (step === 2) {
@@ -523,7 +526,7 @@
           stake = k2Payout;
           step = 3;
         } else {
-          stake = BASE_STAKE;
+          stake = baseStake;
           step = 1;
         }
       } else if (step === 3) {
@@ -531,11 +534,11 @@
           stake = round2(k2Payout / 2);
           step = 4;
         } else {
-          stake = BASE_STAKE;
+          stake = baseStake;
           step = 1;
         }
       } else {
-        stake = BASE_STAKE;
+        stake = baseStake;
         step = 1;
       }
     }
@@ -544,7 +547,7 @@
       step,
       stake: Math.max(0, Math.round(stake)),
       bank: Math.round(bank),
-      profit: Math.round(bank - BASE_STAKE)
+      profit: Math.round(bank - baseStake)
     };
   }
 
@@ -1073,6 +1076,7 @@
       const entry = {
         id: maxId + 1,
         date: nowStamp(),
+        base_stake: BASE_STAKE,
         total_odds: total,
         status: "pending",
         ticket: legs,
