@@ -1318,6 +1318,19 @@
     catch(error){toast("Výsledek se nepodařilo uložit: "+error.message,"err");}
   }
 
+  async function deleteTicketById(ticketId) {
+    const id=Number(ticketId);
+    const ticket=state.history.find(item=>Number(item.id)===id);
+    if(!ticket)return;
+    if(!confirm("Opravdu odstranit tiket #"+id+" z tickets_history.json?"))return;
+    try {
+      const next=state.history.filter(item=>Number(item.id)!==id);
+      state.history=await saveHistory(next,"Odstraněn tiket #"+id);
+      if(state.liveTicketId===id){state.live=null;state.liveTicketId=null;}
+      renderAll();toast("Tiket #"+id+" odstraněn z historie.","ok");
+    } catch(error){toast("Tiket se nepodařilo odstranit: "+error.message,"err");}
+  }
+
   async function closeManualEvaluation() {
     const pending=latestPending(),legs=pending&&(pending.ticket||[]).slice(0,2);
     if(!pending||!legs||legs.length!==2||legs.some(x=>!["won","lost"].includes(x.result))){toast("Nejdřív nastav výsledek obou zápasů.","err");return;}
@@ -1484,6 +1497,7 @@
         '<div style="margin-top:12px">' +
           '<button class="btn btn-ghost" id="refreshLiveBtn" data-action="refresh-live">🔄 Zkontrolovat výsledky</button>' +
           '<button class="btn btn-green" data-action="close-evaluation" '+(legs.length!==2||legs.some(x=>!x.result)?'disabled':'')+'>🏁 Uzavřít vyhodnocení</button>' +
+          '<button class="btn btn-danger" data-action="delete-ticket" data-id="'+esc(pending.id)+'">🗑️ Zrušit a odstranit tiket</button>' +
         '</div>' +
         '<p class="hint" style="margin-top:9px">Skóre z veřejného ESPN API. Hlášení o výkopu a gólech posílá <code>live_tracker.py</code> na Telegram.</p>' +
       '</section>';
@@ -1514,6 +1528,7 @@
           '</div>' +
           legs +
           '<div class="muted small" style="margin-top:7px">Celkový kurz ' + fmtOdds(t.total_odds) + '</div>' +
+          '<button class="btn btn-ghost" style="min-height:44px;margin-top:8px" data-action="delete-ticket" data-id="'+esc(t.id)+'">🗑️ Odstranit tiket z historie</button>' +
         '</div>';
       }).join("");
     }
@@ -1611,6 +1626,7 @@
     else if (action === "refresh-live") refreshLive();
     else if (action === "manual-result") setManualResult(Number(target.dataset.leg),target.dataset.result);
     else if (action === "close-evaluation") closeManualEvaluation();
+    else if (action === "delete-ticket") deleteTicketById(target.dataset.id);
     else if (action === "reload-history") loadHistory();
     else if (action === "open-settings") openSettings();
     else if (action === "close-settings") closeSettings();
