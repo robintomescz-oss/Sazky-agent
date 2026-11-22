@@ -1,5 +1,5 @@
 /* Double AKU PWA – jednoduchý offline cache pro app shell. */
-const CACHE_NAME = "double-aku-v8-odds-range";
+const CACHE_NAME = "double-aku-v9-countdown";
 const APP_SHELL = [
   "./",
   "./index.html",
