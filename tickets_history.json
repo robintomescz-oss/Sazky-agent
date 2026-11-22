@@ -1,1 +1,30 @@
-[]
+[
+  {
+    "id": 1,
+    "date": "2026-11-22 09:33",
+    "base_stake": 1000,
+    "total_odds": 2.56,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "L. Tararudee vs V. Golubic",
+        "league": "WTA Billie Jean King Cup - World Group",
+        "selection": "Výhra domácích (1)",
+        "odds": 1.58,
+        "real_odds": 1.58,
+        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
+        "commence_time": "2026-11-22T08:50:00.000Z"
+      },
+      {
+        "match": "B. Munk Mesa vs P. Perez Ramos",
+        "league": "M15 Alcala de Henares",
+        "selection": "Výhra hostů (2)",
+        "odds": 1.62,
+        "real_odds": 1.62,
+        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
+        "commence_time": "2026-11-22T10:15:00.000Z"
+      }
+    ],
+    "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
+  }
+]
