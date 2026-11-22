@@ -3,7 +3,7 @@
     "id": 1,
     "date": "2026-11-22 00:06",
     "total_odds": 2.51,
-    "status": "pending",
+    "status": "lost",
     "ticket": [
       {
         "match": "Pachuca vs Toluca",
@@ -21,7 +21,12 @@
         "odds": 1.61,
         "real_odds": 1.61,
         "confidence_reason": "Fotbalový favorit s kurzem v bezpečném pásmu (průměr EU sázkových kanceláří).",
-        "commence_time": "2026-11-21T23:00:00Z"
+        "commence_time": "2026-11-21T23:00:00Z",
+        "result": "lost",
+        "live_state": "post",
+        "live_home": 0,
+        "live_away": 3,
+        "result_source": "ESPN final score"
       }
     ],
     "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
