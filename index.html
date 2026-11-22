@@ -893,7 +893,7 @@
       const home=event.home_team||"", away=event.away_team||"";
       if (!home||!away||filterExcluded([{home,away}],exclude).length===0) continue;
       const {averages,probs}=eventOutcomes(event);
-      const sport=sportKey.startsWith("soccer_")?"soccer":sportKey.startsWith("tennis_")?"tennis":"basketball";
+      const sport=(sportKey.startsWith("soccer_")||sportKey.startsWith("apifootball_"))?"soccer":sportKey.startsWith("tennis_")?"tennis":"basketball";
       const options=[];
       if (sport==="soccer") {
         const h=averages.get(home)||0,d=averages.get("Draw")||0,a=averages.get(away)||0;
@@ -1234,22 +1234,38 @@
   }
 
   async function fetchOddsScores(pending) {
-    const key=lsGet(LS.odds).trim(); if(!key)return [];
-    const sportKeys=[...new Set((pending.ticket||[]).map(x=>x.sport_key).filter(Boolean))];
-    const results=await Promise.allSettled(sportKeys.map(async keyName=>{
-      const url=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(keyName)+"/scores/");
-      url.searchParams.set("apiKey",key);url.searchParams.set("daysFrom","2");
-      const res=await fetch(url.toString(),{cache:"no-store"});if(!res.ok)throw new Error("scores HTTP "+res.status);return res.json();
-    }));
-    const matches=[];
-    for(const result of results)if(result.status==="fulfilled")for(const ev of result.value||[]) {
-      const scores=ev.scores||[], h=scores.find(x=>x.name===ev.home_team), a=scores.find(x=>x.name===ev.away_team);
-      const hg=parseInt(h&&h.score,10), ag=parseInt(a&&a.score,10);if(!Number.isFinite(hg)||!Number.isFinite(ag))continue;
-      matches.push({home:ev.home_team,away:ev.away_team,homeGoals:hg,awayGoals:ag,state:ev.completed?"post":"in",clock:ev.completed?"KONEC":"The Odds API",sport:ev.sport_key});
+    const key = lsGet(LS.odds).trim();
+    const fixtureIds = [...new Set((pending.ticket || []).map(leg => Number(leg.fixture_id)).filter(id => Number.isInteger(id) && id > 0))];
+    if (!key || !fixtureIds.length) return [];
+    const url = new URL("https://v3.football.api-sports.io/fixtures");
+    url.searchParams.set("ids", fixtureIds.slice(0, 20).join("-"));
+    url.searchParams.set("timezone", "Europe/Prague");
+    const res = await fetch(url.toString(), {
+      headers: { "x-apisports-key": key },
+      cache: "no-store"
+    });
+    let payload = {};
+    try { payload = await res.json(); } catch (error) { /* chybějící JSON */ }
+    if (!res.ok) throw new Error("API-Football výsledky HTTP " + res.status);
+    const apiErrors = payload.errors;
+    if (apiErrors && (Array.isArray(apiErrors) ? apiErrors.length : Object.keys(apiErrors).length)) {
+      const detail = (Array.isArray(apiErrors) ? apiErrors.join("; ") : Object.values(apiErrors).join("; ")).slice(0, 220);
+      throw new Error("API-Football výsledky: " + (detail || "požadavek odmítnut"));
     }
-    return matches;
+    return (payload.response || []).map(row => {
+      const status = String(row.fixture && row.fixture.status && row.fixture.status.short || "").toUpperCase();
+      const finished = ["FT", "AET", "PEN"].includes(status);
+      return {
+        home: row.teams && row.teams.home && row.teams.home.name || "",
+        away: row.teams && row.teams.away && row.teams.away.name || "",
+        homeGoals: Number(row.goals && row.goals.home) || 0,
+        awayGoals: Number(row.goals && row.goals.away) || 0,
+        state: finished ? "post" : status && status !== "NS" && status !== "TBD" ? "in" : "pre",
+        clock: finished ? "KONEC" : status || "API-Football",
+        sport: "soccer"
+      };
+    }).filter(match => match.home && match.away);
   }
-
   function evaluateSelection(selection, homeGoals, awayGoals) {
     const sel = String(selection || "").toLowerCase().trim();
     const total = homeGoals + awayGoals;
@@ -1492,7 +1508,7 @@
           '<button class="btn btn-green" data-action="close-evaluation" '+(legs.length!==2||legs.some(x=>!x.result)?'disabled':'')+'>🏁 Uzavřít vyhodnocení</button>' +
           '<button class="btn btn-danger" data-action="delete-ticket" data-id="'+esc(pending.id)+'">🗑️ Zrušit a odstranit tiket</button>' +
         '</div>' +
-        '<p class="hint" style="margin-top:9px">Skóre z veřejného ESPN API. Hlášení o výkopu a gólech posílá <code>live_tracker.py</code> na Telegram.</p>' +
+        '<p class="hint" style="margin-top:9px">Skóre z API-Football a záložního ESPN API. Hlášení o výkopu a gólech posílá <code>live_tracker.py</code> na Telegram.</p>' +
       '</section>';
   }
 
