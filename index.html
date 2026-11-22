@@ -348,7 +348,7 @@
     <ul class="info-list">
       <li><b>Double AKU = přesně 2 zápasy.</b> Třetí zápas se nikdy nepřidává.</li>
       <li><b>Reálné kurzy:</b> u obou tipů přepiš kurz z Tipsportu – součin se hned přepočítá.</li>
-      <li><b>Pod 1.80:</b> tlačítko výměny vymění slabší zápas tak, aby součin vyšel kolem 2.00 (stále jen 2 zápasy).</li>
+      <li><b>Pod 1.80:</b> tlačítko výměny vymění slabší zápas tak, aby součin vyšel kolem 2.20 (stále jen 2 zápasy).</li>
       <li><b>Uložení:</b> tiket se zapíše do <code>tickets_history.json</code> na GitHubu jako <code>pending</code>. Workflow <code>live_tracker.py</code> ho do 5 minut začne sledovat a posílat hlášení na Telegram.</li>
       <li><b>Progrese:</b> K1 = 1 000 Kč, K2 = 50 % čistého zisku z K1, K3 = celá výhra z K2, K4 = 50 % z K2. Prohra vrací na Krok 1.</li>
     </ul>
@@ -946,7 +946,7 @@
   async function fetchAiComment(legs) {
     const key = lsGet(LS.gemini).trim();
     if (!key || legs.length !== 2) return "";
-    const prompt = "Jsi stručný sportovní analytik. Ke dvěma fotbalovým tipům napiš jednu českou větu (max 160 znaků) o tom, proč jsou bezpečné. Tipy: " +
+    const prompt = "Jsi stručný sportovní analytik. Ke dvěma sportovním tipům napiš jednu českou větu (max 160 znaků) o odhadované pravděpodobnosti. Tipy: " +
       legs.map(l => l.match + " – " + l.selection + " @ " + fmtOdds(l.odds)).join("; ") + ". Odpověz pouze větou.";
 
     const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + encodeURIComponent(key), {
@@ -1338,7 +1338,7 @@
       const low = total > 0 && total < 1.80;
       swapBtn.disabled = !low;
       swapBtn.classList.toggle("attention", low);
-      swapBtn.title = low ? "Vymění slabší zápas tak, aby součin vyšel kolem 2.00" : "Aktivní až při součinu pod 1.80";
+      swapBtn.title = low ? "Vymění slabší zápas tak, aby součin vyšel kolem 2.20" : "Aktivní až při součinu pod 1.80";
     }
   }
 
@@ -1495,6 +1495,7 @@
     oddsCache.clear();
     updateKeyStates();
     closeSettings();
+    renderAll();
     toast("Nastavení uloženo.", "ok");
 
     if (lsGet(LS.token) !== oldToken) {
