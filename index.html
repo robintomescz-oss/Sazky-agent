@@ -765,7 +765,7 @@
 
     const now = Date.now();
     const limit = now + 48 * 60 * 60 * 1000;
-    const dates = [0, 1, 2].map(localDateOffset);
+    const dates = [0, 1].map(localDateOffset);
     const fixtureLists = await Promise.all(dates.map(date =>
       apiFootballPages("/fixtures", { date, timezone: "Europe/Prague" }, 8)
     ));
