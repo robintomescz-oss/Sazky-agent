@@ -497,7 +497,7 @@
     const rows = history || [];
     const evaluated = rows.filter(t => t && (t.status === "won" || t.status === "lost"));
     const savedBase = [...rows].reverse().find(t => Number(t && t.base_stake) > 0);
-    const baseStake = savedBase ? Number(savedBase.base_stake) : baseStake;
+    const baseStake = savedBase ? Number(savedBase.base_stake) : BASE_STAKE;
     let step = 1;
     let stake = baseStake;
     let k2Payout = 0;
