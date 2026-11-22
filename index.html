@@ -787,16 +787,20 @@
     function adapt(row, isLive) {
       const fixture = row.fixture || {};
       const fixtureId = Number(fixture.id);
-      const home = row.teams && row.teams.home && row.teams.home.name || "";
-      const away = row.teams && row.teams.away && row.teams.away.name || "";
+      const fixtureData = fixtureIndex.get(fixtureId) || {};
+      const fixtureInfo = fixtureData.fixture || {};
+      const teams = row.teams || fixtureData.teams || {};
+      const home = teams.home && teams.home.name || "";
+      const away = teams.away && teams.away.name || "";
       if (!fixtureId || !home || !away) return null;
       const bookmakers = [];
-      for (const bookmaker of row.bookmakers || []) {
+      const sourceBookmakers = row.bookmakers && row.bookmakers.length ? row.bookmakers : (Array.isArray(row.odds) ? [{name:"Live odds",bets:row.odds}] : []);
+      for (const bookmaker of sourceBookmakers) {
         const markets = [];
         for (const bet of bookmaker.bets || []) {
           const betName = String(bet.name || "").trim();
-          const isWinner = /^(match winner|1x2|full time result)$/i.test(betName);
-          const isTotals = /^(goals? over\/under|over\/under|total goals)$/i.test(betName);
+          const isWinner = /match winner|1x2|full time|winner/i.test(betName);
+          const isTotals = /goals?.*over\/under|over\/under|total goals|over\/under/i.test(betName);
           if (!isWinner && !isTotals) continue;
           const outcomes = [];
           let totalLine = "";
@@ -810,7 +814,7 @@
               else if (/^(away|2)$/i.test(label) || normalizeTeam(label) === normalizeTeam(away)) name = away;
               else if (/^(draw|x)$/i.test(label)) name = "Draw";
             } else {
-              const total = label.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)/i);
+              const total = (label + " " + String(value.handicap || "")).match(/(over|under)\s*([0-9]+(?:\.[0-9]+)?)/i);
               if (total) {
                 totalLine = total[2];
                 name = total[1].toLowerCase() + " " + total[2];
@@ -820,19 +824,27 @@
           }
           if (outcomes.length >= 2) markets.push({ key: isWinner ? "h2h" : "totals_" + totalLine, outcomes });
         }
+        if (!markets.length) {
+          for (const bet of bookmaker.bets || []) {
+            const outcomes=[];
+            for(const value of bet.values||[]){const label=String(value.value||"").trim(),odd=Number(String(value.odd||"").replace(",","."));if(!(odd>1))continue;let name="";if(/^(home|1)$/i.test(label)||normalizeTeam(label)===normalizeTeam(home))name=home;else if(/^(away|2)$/i.test(label)||normalizeTeam(label)===normalizeTeam(away))name=away;else if(/^(draw|x)$/i.test(label))name="Draw";if(name)outcomes.push({name,price:odd});}
+            if(new Set(outcomes.map(x=>x.name)).size>=2)markets.push({key:"h2h",outcomes});
+          }
+        }
         if (markets.length) bookmakers.push({ title: bookmaker.name || "", markets });
       }
       if (!bookmakers.length) return null;
-      const short = String(fixture.status && fixture.status.short || "").toUpperCase();
+      const status = fixture.status || fixtureInfo.status || {};
+      const short = String(status.short || "").toUpperCase();
       const live = !!isLive || !["", "NS", "TBD", "PST", "CANC", "FT", "AET", "PEN"].includes(short);
       return {
         id: "apifootball_" + fixtureId,
         fixture_id: fixtureId,
         home_team: home,
         away_team: away,
-        commence_time: fixture.date || "",
-        sport_title: row.league && row.league.name || "Fotbal",
-        sport_key: "apifootball_" + Number(row.league && row.league.id || 0),
+        commence_time: fixture.date || fixtureInfo.date || "",
+        sport_title: (row.league && row.league.name) || (fixtureData.league && fixtureData.league.name) || "Fotbal",
+        sport_key: "apifootball_" + Number((row.league && row.league.id) || (fixtureData.league && fixtureData.league.id) || 0),
         bookmakers,
         is_live: live,
         status_short: short
@@ -845,7 +857,12 @@
     const dates = [localDateOffset(0)];
     if (endOfWindow.toDateString() !== today.toDateString()) dates.push(localDateOffset(1));
     const rows = [];
+    const fixtureIndex = new Map();
     const diagnostics = { prematchRows: 0, liveRows: 0, withOdds: 0, inWindow: 0, liveInWindow: 0, allowed: 0, candidates: 0 };
+    for (const date of dates) {
+      const fixturePayload=await request("fixtures",{date,timezone:"Europe/Prague"});
+      for(const fixtureRow of fixturePayload.response||[]){const id=Number(fixtureRow.fixture&&fixtureRow.fixture.id);if(id)fixtureIndex.set(id,fixtureRow);}
+    }
     for (const date of dates) {
       for (let page = 1; page <= 3; page++) {
         const payload = await request("odds", { date, page, timezone: "Europe/Prague" });
