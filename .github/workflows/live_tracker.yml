@@ -40,7 +40,7 @@ jobs:
           git config --local user.name "GitHub Action"
           git add tickets_history.json
           if ! git diff --staged --quiet; then
-            git pull --rebase origin main
             git commit -m "Live match update"
-            git push
+            git pull --rebase origin main
+            git push origin main
           fi
