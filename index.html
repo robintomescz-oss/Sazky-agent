@@ -740,18 +740,11 @@
     return payload;
   }
 
-  async function apiFootballPages(path, params, maxPages) {
-    const isPaged = path === "/odds";
+  async function apiFootballPages(path, params) {
+    // API-Football free plans and some endpoints reject the optional page field.
+    // Read the first response only; this avoids the "Page field do not exist" error.
     const first = await apiFootballRequest(path, params);
-    const rows = Array.isArray(first.response) ? first.response.slice() : [];
-    if (!isPaged) return rows;
-
-    const pages = Math.min(Math.max(1, Number(first.paging && first.paging.total) || 1), maxPages || 8);
-    for (let page = 2; page <= pages; page++) {
-      const next = await apiFootballRequest(path, Object.assign({}, params, { page }));
-      if (Array.isArray(next.response)) rows.push(...next.response);
-    }
-    return rows;
+    return Array.isArray(first.response) ? first.response.slice() : [];
   }
 
   function localDateOffset(days) {
