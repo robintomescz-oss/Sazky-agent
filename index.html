@@ -430,7 +430,8 @@
     liveTicketId: null,
     busy: false,
     lastSource: "",
-    fetchDiagnostics: null
+    fetchDiagnostics: null,
+    providerWarnings: []
   };
 
   const oddsCache = new Map();
@@ -747,8 +748,15 @@
   async function fetchOddsEvents(enabled, windowHours) {
     const key = lsGet(LS.odds).trim();
     const extraEvents = [];
-    if (enabled.includes("basketball")) extraEvents.push(...await fetchBasketballEvents(windowHours, key));
-    if (enabled.includes("tennis")) extraEvents.push(...await fetchTennisEvents(windowHours));
+    state.providerWarnings = [];
+    if (enabled.includes("basketball")) {
+      try { extraEvents.push(...await fetchBasketballEvents(windowHours, key)); }
+      catch (error) { state.providerWarnings.push(error.message); }
+    }
+    if (enabled.includes("tennis")) {
+      try { extraEvents.push(...await fetchTennisEvents(windowHours)); }
+      catch (error) { state.providerWarnings.push(error.message); }
+    }
     if (!enabled.includes("soccer")) return extraEvents;
     if (!key) throw new Error("Chybí API-Sports klíč pro fotbal/basketbal – otevři Nastavení.");
     const base = "https://v3.football.api-sports.io";
@@ -1083,11 +1091,12 @@
         if (Number(d.prematchRows) + Number(d.liveRows) > 0 && !d.withOdds) reason = "API vrátilo data, ale žádná událost nemá podporovaný trh výsledku nebo gólů.";
         else if (d.withOdds > 0 && !d.inWindow) reason = "Události s kurzy existují, ale žádná nezačíná v nastaveném okně a není právě live.";
         else if (d.inWindow > 0 && !d.candidates) reason = "Události v okně mají kurzy, ale žádný favorit neprošel filtrem zadaných kurzů "+(d.requestedMin||"")+"–"+(d.requestedMax||"")+".";
-        throw new Error(reason + " Diagnostika API-Football: před zápasem " + (d.prematchRows||0) + ", live " + (d.liveRows||0) + ", s trhem " + (d.withOdds||0) + ", v okně " + (d.inWindow||0) + ", povolený sport " + (d.allowed||0) + ", vhodné tipy " + (d.candidates||0) + ".");
+        const notes=state.providerWarnings.length?" Doplňující zdroje: "+state.providerWarnings.join(" | "):"";
+        throw new Error(reason + " Diagnostika API-Football: před zápasem " + (d.prematchRows||0) + ", live " + (d.liveRows||0) + ", s trhem " + (d.withOdds||0) + ", v okně " + (d.inWindow||0) + ", povolený sport " + (d.allowed||0) + ", vhodné tipy " + (d.candidates||0) + "." + notes);
       }
       renderCandidates();
       $("#ticketSection").scrollIntoView({behavior:"smooth",block:"start"});
-      toast("Našlo se "+state.candidates.length+" možností. Vyber přesně dvě.", "ok");
+      toast("Našlo se "+state.candidates.length+" možností. Vyber přesně dvě."+(state.providerWarnings.length?" Zdroje: "+state.providerWarnings.join(" | "):""), state.providerWarnings.length?"err":"ok");
     } catch(error) {
       toast(error.message, "err");
       if (/The Odds API klíč/.test(error.message)) openSettings();
