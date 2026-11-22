@@ -466,9 +466,10 @@
     if (isLive) return "Právě probíhá";
     const time = Date.parse(start || "");
     if (!Number.isFinite(time)) return "Čas začátku není dostupný";
-    const minutes = Math.ceil((time - Date.now()) / 60000);
-    if (minutes <= 0) return "Začátek už proběhl";
-    if (minutes < 1) return "Začíná za méně než minutu";
+    const remaining = time - Date.now();
+    if (remaining <= 0) return "Začátek už proběhl";
+    if (remaining < 60000) return "Začíná za méně než minutu";
+    const minutes = Math.ceil(remaining / 60000);
     if (minutes < 60) return "Začíná za " + minutes + " min";
     const hours = Math.floor(minutes / 60);
     const rest = minutes % 60;
@@ -1157,7 +1158,7 @@
         '<div class="match">'+esc(c.match)+'</div>'+
         '<div class="sel-row"><span class="chip">'+esc(c.selection)+'</span><span class="api-odds">Kurz '+fmtOdds(c.odds)+'</span></div>'+
         '<div class="muted small">Odhad pravděpodobnosti: <b>'+pct+' %</b> · '+esc(time)+'</div>'+
-        '<div class="countdown small" data-countdown data-start="'+esc(c.commence_time||"")' + '" data-live="'+(c.is_live?"true":"false")+'">'+esc(countdownText(c.commence_time,c.is_live))+'</div>'+
+        '<div class="countdown small" data-countdown data-start="'+esc(c.commence_time||"")+'" data-live="'+(c.is_live?"true":"false")+'">'+esc(countdownText(c.commence_time,c.is_live))+'</div>'+
         '<button class="btn '+(isSelected?"btn-green":"btn-ghost")+'" style="margin-top:10px" data-action="select-candidate" data-index="'+i+'">'+(isSelected?"✓ Vybráno":"＋ Vybrat tip")+'</button>'+
       '</article>';
     }).join("");
