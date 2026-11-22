@@ -1097,7 +1097,7 @@
     state.busy = true;
     setBusy(button, true, "Načítám nabídku…", "🎯 Doporučit Double AKU (2 zápasy)");
     try {
-      const pool = await fetchCandidates(1.35, 1.72);
+      const pool = await fetchCandidates(1.50, 1.85);
       pool.sort((a,b)=>(Number(b.probability)||0)-(Number(a.probability)||0));
       state.candidates = pool.slice(0,5);
       state.selectedCandidates = [];
