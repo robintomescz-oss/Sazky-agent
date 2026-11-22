@@ -327,8 +327,7 @@
     <h2>🏟️ Sporty a časové okno</h2>
     <div class="sport-filters">
       <label><input type="checkbox" data-sport-filter="soccer" checked> ⚽ Fotbal</label>
-      <label><input type="checkbox" data-sport-filter="tennis" checked> 🎾 Tenis</label>
-      <label><input type="checkbox" data-sport-filter="basketball" checked> 🏀 Basket</label>
+      
     </div>
     <label class="field"><span>Časové okno (max. 5 hodin)</span>
       <select id="timeWindow"><option value="2">⏱️ Do 2 hodin</option><option value="5">📅 Do 5 hodin</option></select>
@@ -365,9 +364,9 @@
     <p class="muted small">Klíče se ukládají pouze do tohoto zařízení (<code>localStorage</code>) a nikam je neposíláme kromě volání příslušných API.</p>
 
     <div class="field">
-      <label for="oddsKey">ODDS_API_KEY <span class="key-state" id="oddsKeyState"></span></label>
-      <input id="oddsKey" type="password" autocomplete="off" spellcheck="false" placeholder="klíč z the-odds-api.com">
-      <div class="help">The Odds API – nabídky fotbalu, tenisu a basketbalu.</div>
+      <label for="oddsKey">API_FOOTBALL_KEY <span class="key-state" id="oddsKeyState"></span></label>
+      <input id="oddsKey" type="password" autocomplete="off" spellcheck="false" placeholder="klíč z api-football.com">
+      <div class="help">API-Football – fotbalové zápasy, kurzy a live skóre.</div>
     </div>
 
     <div class="field">
@@ -410,7 +409,7 @@
   const BRANCH = "main";
   const HISTORY_PATH = "tickets_history.json";
   let BASE_STAKE = Math.max(1, Number(localStorage.getItem("BASE_STAKE")) || 1000);
-  const LS = { odds: "ODDS_API_KEY", gemini: "GEMINI_API_KEY", token: "GITHUB_TOKEN" };
+  const LS = { odds: "API_FOOTBALL_KEY", gemini: "GEMINI_API_KEY", token: "GITHUB_TOKEN" };
 
   const state = {
     history: [],
@@ -428,7 +427,7 @@
 
   const oddsCache = new Map();
   try {
-    const chosen = JSON.parse(localStorage.getItem("SPORT_FILTERS") || '["soccer","tennis","basketball"]');
+    const chosen = JSON.parse(localStorage.getItem("SPORT_FILTERS") || '["soccer"]');
     document.querySelectorAll("[data-sport-filter]").forEach(el => { el.checked = chosen.includes(el.dataset.sportFilter); });
     $("#timeWindow").value = Math.min(5, Number(localStorage.getItem("TIME_WINDOW")) || 2);
   } catch (e) { /* použij výchozí volby */ }
@@ -736,80 +735,106 @@
   }
 
   async function fetchOddsEvents(enabled, windowHours) {
-    const key=lsGet(LS.odds).trim();
-    if(!key)throw new Error("Chybí The Odds API klíč – otevři Nastavení.");
-    const api="https://api.the-odds-api.com/v4";
-    async function getJson(url) {
-      let response;
-      try { response=await fetch(url,{cache:"no-store"}); }
-      catch(error) { throw new Error("The Odds API se nepodařilo načíst (síť/CORS)."); }
-      if(!response.ok) {
-        let detail="";
-        try { const payload=await response.json(); detail=String(payload.message||payload.error||payload.error_code||"").slice(0,220); } catch(error) { /* tělo chyby nemusí být JSON */ }
-        if(response.status===401||response.status===403) throw new Error("The Odds API HTTP "+response.status+(detail?": "+detail:" – klíč je neplatný, deaktivovaný nebo není spojený s předplatným."));
-        if(response.status===429) throw new Error("The Odds API: vyčerpán limit požadavků."+(detail?" "+detail:""));
-        throw new Error("The Odds API HTTP "+response.status+(detail?": "+detail:""));
-      }
-      return response.json();
-    }
-    const sportsUrl=new URL(api+"/sports/");
-    sportsUrl.searchParams.set("apiKey",key);
-    const sports=await getJson(sportsUrl.toString());
-    const eligible=(sports||[]).filter(s=>s.active&&sportAllowed(s.key,s.title,enabled));
-    const now=Date.now(),from=now+5*60*1000,to=now+Math.min(5,windowHours)*3600000;
-    let cursor=0;
-    const scheduled=[];
-    const worker=async()=>{
-      while(cursor<eligible.length) {
-        const sport=eligible[cursor++];
-        const url=new URL(api+"/sports/"+encodeURIComponent(sport.key)+"/events/");
-        url.searchParams.set("apiKey",key);
-        try {
-          const events=await getJson(url.toString());
-          for(const event of events||[]) {
-            const start=Date.parse(event.commence_time||"");
-            if(Number.isFinite(start)&&start>=from&&start<=to)
-              scheduled.push(Object.assign({},event,{sport_title:sport.title,sport_key:sport.key}));
-          }
-        } catch(error) {
-          if(String(error.message).includes("limit")||String(error.message).includes("odmítlo klíč"))throw error;
-        }
-      }
-    };
-    const workers=Array.from({length:Math.min(6,eligible.length)},()=>worker());
-    const settled=await Promise.allSettled(workers);
-    const hardError=settled.find(x=>x.status==="rejected");
-    if(hardError)throw hardError.reason;
-    if(!scheduled.length)return [];
-    const bySport=new Map();
-    for(const event of scheduled) {
-      if(!bySport.has(event.sport_key))bySport.set(event.sport_key,[]);
-      bySport.get(event.sport_key).push(event);
-    }
-    const results=[];
-    let next=0;
-    const oddsWorker=async()=>{
-      while(next<bySport.size) {
-        const entry=[...bySport.entries()][next++];
-        const [sportKey,events]=entry;
-        const url=new URL(api+"/sports/"+encodeURIComponent(sportKey)+"/odds/");
-        url.searchParams.set("apiKey",key);
-        url.searchParams.set("regions","eu");
-        url.searchParams.set("markets","h2h");
-        url.searchParams.set("oddsFormat","decimal");
-        url.searchParams.set("eventIds",events.map(event=>event.id).join(","));
-        const rows=await getJson(url.toString());
-        const titles=new Map(events.map(event=>[event.id,event.sport_title]));
-        for(const row of rows||[])results.push(Object.assign({},row,{sport_title:row.sport_title||titles.get(row.id)||sportKey}));
-      }
-    };
-    const oddsWorkers=Array.from({length:Math.min(4,bySport.size)},()=>oddsWorker());
-    const oddsSettled=await Promise.allSettled(oddsWorkers);
-    const oddsError=oddsSettled.find(x=>x.status==="rejected");
-    if(oddsError)throw oddsError.reason;
-    return results;
-  }
+    const key = lsGet(LS.odds).trim();
+    if (!key) throw new Error("Chybí API-Football klíč – otevři Nastavení.");
+    const base = "https://v3.football.api-sports.io";
 
+    async function request(path, params) {
+      const url = new URL(base + "/" + path);
+      for (const [name, value] of Object.entries(params || {})) url.searchParams.set(name, String(value));
+      let response;
+      try {
+        response = await fetch(url.toString(), {
+          headers: { "x-apisports-key": key },
+          cache: "no-store"
+        });
+      } catch (error) {
+        throw new Error("API-Football se nepodařilo načíst (síť/CORS).");
+      }
+      let payload = {};
+      try { payload = await response.json(); } catch (error) { /* chybějící JSON */ }
+      if (!response.ok) throw new Error("API-Football HTTP " + response.status);
+      const apiErrors = payload.errors;
+      if (apiErrors && (Array.isArray(apiErrors) ? apiErrors.length : Object.keys(apiErrors).length)) {
+        const detail = (Array.isArray(apiErrors) ? apiErrors.join("; ") : Object.values(apiErrors).join("; ")).slice(0, 220);
+        throw new Error("API-Football: " + (detail || "požadavek odmítnut"));
+      }
+      return payload;
+    }
+
+    function adapt(row, isLive) {
+      const fixture = row.fixture || {};
+      const fixtureId = Number(fixture.id);
+      const home = row.teams && row.teams.home && row.teams.home.name || "";
+      const away = row.teams && row.teams.away && row.teams.away.name || "";
+      if (!fixtureId || !home || !away) return null;
+      const bookmakers = [];
+      for (const bookmaker of row.bookmakers || []) {
+        const markets = [];
+        for (const bet of bookmaker.bets || []) {
+          if (!/^(match winner|1x2|full time result)$/i.test(String(bet.name || "").trim())) continue;
+          const outcomes = [];
+          for (const value of bet.values || []) {
+            const label = String(value.value || "").trim();
+            const odd = Number(String(value.odd || "").replace(",", "."));
+            if (!(odd > 1)) continue;
+            let name = "";
+            if (/^(home|1)$/i.test(label) || normalizeTeam(label) === normalizeTeam(home)) name = home;
+            else if (/^(away|2)$/i.test(label) || normalizeTeam(label) === normalizeTeam(away)) name = away;
+            else if (/^(draw|x)$/i.test(label)) name = "Draw";
+            if (name) outcomes.push({ name, price: odd });
+          }
+          if (outcomes.length >= 2) markets.push({ key: "h2h", outcomes });
+        }
+        if (markets.length) bookmakers.push({ title: bookmaker.name || "", markets });
+      }
+      if (!bookmakers.length) return null;
+      const short = String(fixture.status && fixture.status.short || "").toUpperCase();
+      const live = !!isLive || !["", "NS", "TBD", "PST", "CANC", "FT", "AET", "PEN"].includes(short);
+      return {
+        id: "apifootball_" + fixtureId,
+        fixture_id: fixtureId,
+        home_team: home,
+        away_team: away,
+        commence_time: fixture.date || "",
+        sport_title: row.league && row.league.name || "Fotbal",
+        sport_key: "apifootball_" + Number(row.league && row.league.id || 0),
+        bookmakers,
+        is_live: live,
+        status_short: short
+      };
+    }
+
+    const dates = [...new Set([localDateOffset(0), localDateOffset(1)])];
+    const rows = [];
+    for (const date of dates) {
+      for (let page = 1; page <= 5; page++) {
+        const payload = await request("odds", { date, page, timezone: "Europe/Prague" });
+        rows.push(...(payload.response || []));
+        const totalPages = Number(payload.paging && payload.paging.total || 1);
+        if (page >= totalPages) break;
+      }
+    }
+    const livePayload = await request("odds/live", {});
+    const now = Date.now();
+    const minStart = now + 5 * 60 * 1000;
+    const maxStart = now + Math.min(5, Number(windowHours) || 5) * 3600000;
+    const liveStartLimit = now - 5 * 3600000;
+    const byFixture = new Map();
+    for (const row of rows) {
+      const event = adapt(row, false);
+      if (event) byFixture.set(event.fixture_id, event);
+    }
+    for (const row of livePayload.response || []) {
+      const event = adapt(row, true);
+      if (event) byFixture.set(event.fixture_id, event);
+    }
+    return [...byFixture.values()].filter(event => {
+      const kickoff = Date.parse(event.commence_time || "");
+      if (!Number.isFinite(kickoff)) return false;
+      return event.is_live ? kickoff >= liveStartLimit : kickoff >= minStart && kickoff <= maxStart;
+    });
+  }
   function selectedSports() {
     return [...document.querySelectorAll("[data-sport-filter]:checked")].map(el => el.dataset.sportFilter);
   }
@@ -817,6 +842,7 @@
   function sportAllowed(key, title, enabled) {
     const k = String(key || "").toLowerCase();
     const t = String(title || "").toLowerCase();
+    if (k.startsWith("apifootball_")) return enabled.includes("soccer");
     if (k.startsWith("soccer_")) {
       if (!enabled.includes("soccer")) return false;
       const prioritySoccer = new Set(["soccer_epl","soccer_spain_la_liga","soccer_germany_bundesliga","soccer_italy_serie_a","soccer_france_ligue_one","soccer_uefa_champs_league","soccer_uefa_europa_league","soccer_uefa_europa_conference_league","soccer_netherlands_eredivisie","soccer_portugal_primeira_liga","soccer_usa_mls"]);
@@ -862,7 +888,8 @@
       const sportKey=event.sport_key||"", title=event.sport_title||sportKey;
       if (!sportAllowed(sportKey,title,enabled)) continue;
       const kickoff=Date.parse(event.commence_time||"");
-      if (!Number.isFinite(kickoff)||kickoff<start||kickoff>limit) continue;
+      const liveTooOld=event.is_live&&kickoff<now-5*3600000;
+      if (!Number.isFinite(kickoff)||liveTooOld||(!event.is_live&&(kickoff<start||kickoff>limit))) continue;
       const home=event.home_team||"", away=event.away_team||"";
       if (!home||!away||filterExcluded([{home,away}],exclude).length===0) continue;
       const {averages,probs}=eventOutcomes(event);
@@ -885,7 +912,7 @@
       if (!options.length) continue;
       options.sort((a,b)=>b.prob-a.prob);
       const choice=options[0];
-      candidates.push({home,away,match:home+" vs "+away,league:title,sport,sport_key:sportKey,
+      candidates.push({home,away,match:home+" vs "+away,league:title,sport,sport_key:sportKey,fixture_id:event.fixture_id||null,is_live:!!event.is_live,
         selection:choice.selection,odds:round2(choice.odds),probability:choice.prob,
         commence:event.commence_time||"",commence_time:event.commence_time||""});
     }
@@ -939,6 +966,8 @@
       probability: candidate.probability || 0,
       sport: candidate.sport || "soccer",
       sport_key: candidate.sport_key || "",
+      fixture_id: candidate.fixture_id || null,
+      is_live: !!candidate.is_live,
       commence_time: candidate.commence || ""
     };
   }
