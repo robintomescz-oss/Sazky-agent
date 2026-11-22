@@ -323,9 +323,20 @@
 <main class="wrap">
   <section class="card" id="progressCard" aria-live="polite"></section>
 
+  <section class="card" id="filtersCard">
+    <h2>🏟️ Sporty a časové okno</h2>
+    <div class="sport-filters">
+      <label><input type="checkbox" data-sport-filter="soccer" checked> ⚽ Fotbal</label>
+      <label><input type="checkbox" data-sport-filter="tennis" checked> 🎾 Tenis</label>
+      <label><input type="checkbox" data-sport-filter="basketball" checked> 🏀 Basket</label>
+    </div>
+    <label class="field"><span>Časové okno (max. 5 hodin)</span>
+      <select id="timeWindow"><option value="2">⏱️ Do 2 hodin</option><option value="5">📅 Do 5 hodin</option></select>
+    </label>
+  </section>
   <section>
-    <button class="btn btn-primary" data-action="recommend" id="recommendBtn">🎯 Doporučit dnešní Double AKU</button>
-    <p class="hint">Načte zápasy a předzápasové kurzy z API-Football, vybere dva favority (kurz 1.10–1.65 na tip) a cílí na celkový kurz 2.00.</p>
+    <button class="btn btn-primary" data-action="recommend" id="recommendBtn">🎯 Doporučit Double AKU (2 zápasy)</button>
+    <p class="hint">Fotbal, ATP/WTA a Grand Slamy (bez ITF), NBA a Euroliga. Výběr maximalizuje odhad pravděpodobnosti a míří na celkový kurz 2,20.</p>
   </section>
 
   <section id="ticketSection"></section>
@@ -354,9 +365,9 @@
     <p class="muted small">Klíče se ukládají pouze do tohoto zařízení (<code>localStorage</code>) a nikam je neposíláme kromě volání příslušných API.</p>
 
     <div class="field">
-      <label for="oddsKey">API_FOOTBALL_KEY <span class="key-state" id="oddsKeyState"></span></label>
-      <input id="oddsKey" type="password" autocomplete="off" spellcheck="false" placeholder="klíč z api-football.com">
-      <div class="help">Pro načtení fotbalových zápasů a předzápasových kurzů.</div>
+      <label for="oddsKey">ODDS_API_KEY <span class="key-state" id="oddsKeyState"></span></label>
+      <input id="oddsKey" type="password" autocomplete="off" spellcheck="false" placeholder="klíč z the-odds-api.com">
+      <div class="help">The Odds API – nabídky fotbalu, tenisu a basketbalu.</div>
     </div>
 
     <div class="field">
@@ -371,10 +382,15 @@
       <div class="help">Fine-grained token s právem <b>Contents: Read and write</b>. Potřebný jen pro ukládání tiketů – veřejná historie se načítá i bez něj.</div>
     </div>
 
-    <div class="repo-note">
-      Repozitář: <code>robintomescz-oss/Sazky-agent</code><br>
-      Větev: <code>main</code> · Soubor: <code>tickets_history.json</code>
+    <div class="field">
+      <label for="repoName">GitHub repozitář</label>
+      <input id="repoName" type="text" autocomplete="off" value="robintomescz-oss/Sazky-agent" placeholder="vlastník/repozitář">
     </div>
+    <div class="field">
+      <label for="baseStake">Základní vklad Kroku 1 (Kč)</label>
+      <input id="baseStake" type="number" min="1" step="100" value="1000">
+    </div>
+    <div class="repo-note">Větev: <code>main</code> · Soubor: <code>tickets_history.json</code></div>
 
     <div class="sheet-actions">
       <button class="btn btn-green" data-action="save-settings">💾 Uložit nastavení</button>
@@ -389,11 +405,13 @@
 (function () {
   "use strict";
 
-  const REPO = "robintomescz-oss/Sazky-agent";
+  const REPO_DEFAULT = "robintomescz-oss/Sazky-agent";
+  let REPO = localStorage.getItem("GITHUB_REPO") || REPO_DEFAULT;
   const BRANCH = "main";
   const HISTORY_PATH = "tickets_history.json";
-  const BASE_STAKE = 1000;
-  const LS = { odds: "API_FOOTBALL_KEY", gemini: "GEMINI_API_KEY", token: "GITHUB_TOKEN" };
+  let BASE_STAKE = Math.max(1, Number(localStorage.getItem("BASE_STAKE")) || 1000);
+  const LS = { odds: "ODDS_API_KEY", gemini: "GEMINI_API_KEY", token: "GITHUB_TOKEN" };
+  if (!localStorage.getItem(LS.odds) && localStorage.getItem("API_FOOTBALL_KEY")) localStorage.setItem(LS.odds, localStorage.getItem("API_FOOTBALL_KEY"));
 
   const state = {
     history: [],
@@ -408,6 +426,11 @@
   };
 
   const oddsCache = new Map();
+  try {
+    const chosen = JSON.parse(localStorage.getItem("SPORT_FILTERS") || '["soccer","tennis","basketball"]');
+    document.querySelectorAll("[data-sport-filter]").forEach(el => { el.checked = chosen.includes(el.dataset.sportFilter); });
+    $("#timeWindow").value = Math.min(5, Number(localStorage.getItem("TIME_WINDOW")) || 2);
+  } catch (e) { /* použij výchozí volby */ }
 
   /* ---------- Pomocné funkce ---------- */
 
@@ -708,43 +731,99 @@
     return shared.length >= 2 && Math.max(...shared.map(t => t.length)) >= 3;
   }
 
-  async function apiFootballRequest(path, params) {
+  async function fetchOddsEvents() {
     const key = lsGet(LS.odds).trim();
-    if (!key) throw new Error("Chybí API-Football klíč – otevři nastavení ⚙️");
-    const url = new URL("https://v3.football.api-sports.io" + path);
-    for (const [name, value] of Object.entries(params || {})) {
-      url.searchParams.set(name, String(value));
-    }
+    if (!key) throw new Error("Chybí The Odds API klíč – otevři Nastavení.");
+    const url = new URL("https://api.the-odds-api.com/v4/sports/upcoming/odds");
+    url.searchParams.set("apiKey", key);
+    url.searchParams.set("regions", "eu");
+    url.searchParams.set("markets", "h2h");
+    url.searchParams.set("oddsFormat", "decimal");
     let response;
-    try {
-      response = await fetch(url.toString(), {
-        headers: { "x-apisports-key": key },
-        cache: "no-store"
-      });
-    } catch (error) {
-      throw new Error("API-Football: síťové spojení selhalo při " + path + ". Může jít o CORS nebo dočasné omezení API; zkus to za chvíli znovu.");
-    }
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        throw new Error("API-Football odmítlo klíč nebo tento plán nemá přístup k požadovaným kurzům.");
-      }
-      if (response.status === 429) throw new Error("API-Football: dosažen limit požadavků.");
-      throw new Error("API-Football HTTP " + response.status);
-    }
-    const payload = await response.json();
-    const apiErrors = payload && payload.errors;
-    if (apiErrors && (Array.isArray(apiErrors) ? apiErrors.length : Object.keys(apiErrors).length)) {
-      const detail = Array.isArray(apiErrors) ? apiErrors.join("; ") : Object.values(apiErrors).join("; ");
-      throw new Error("API-Football: " + detail);
-    }
-    return payload;
+    try { response = await fetch(url.toString(), { cache: "no-store" }); }
+    catch (error) { throw new Error("The Odds API se nepodařilo načíst (síť/CORS)."); }
+    if (response.status === 401 || response.status === 403) throw new Error("The Odds API odmítlo klíč.");
+    if (response.status === 429) throw new Error("The Odds API: vyčerpán limit požadavků.");
+    if (!response.ok) throw new Error("The Odds API HTTP " + response.status);
+    return response.json();
   }
 
-  async function apiFootballPages(path, params) {
-    // API-Football free plans and some endpoints reject the optional page field.
-    // Read the first response only; this avoids the "Page field do not exist" error.
-    const first = await apiFootballRequest(path, params);
-    return Array.isArray(first.response) ? first.response.slice() : [];
+  function selectedSports() {
+    return [...document.querySelectorAll("[data-sport-filter]:checked")].map(el => el.dataset.sportFilter);
+  }
+
+  function sportAllowed(key, title, enabled) {
+    const k = String(key || "").toLowerCase();
+    const t = String(title || "").toLowerCase();
+    if (k.startsWith("soccer_")) return enabled.includes("soccer");
+    if (k.startsWith("tennis_")) {
+      if (!enabled.includes("tennis") || /\\bitf\\b|challenger|futures/.test(k + " " + t)) return false;
+      return /atp|wta|grand slam|australian open|roland garros|french open|wimbledon|us open/.test(k + " " + t);
+    }
+    if (k.startsWith("basketball_")) return enabled.includes("basketball") && /nba|euroleague/.test(k + " " + t);
+    return false;
+  }
+
+  function eventOutcomes(event) {
+    const averages = new Map();
+    const counts = new Map();
+    for (const bookmaker of event.bookmakers || []) for (const market of bookmaker.markets || []) {
+      if (market.key !== "h2h") continue;
+      for (const outcome of market.outcomes || []) {
+        const price = Number(outcome.price);
+        if (!(price > 1)) continue;
+        averages.set(outcome.name, (averages.get(outcome.name) || 0) + price);
+        counts.set(outcome.name, (counts.get(outcome.name) || 0) + 1);
+      }
+    }
+    for (const [name,total] of averages) averages.set(name,total/counts.get(name));
+    const implied = [...averages.entries()].map(([name,odds])=>[name,1/odds]);
+    const sum = implied.reduce((n,x)=>n+x[1],0);
+    return { averages, probs: new Map(implied.map(([name,p])=>[name,p/sum])) };
+  }
+
+  async function fetchCandidates(minOdds, maxOdds, exclude) {
+    const enabled = selectedSports();
+    if (!enabled.length) throw new Error("Zapni alespoň jeden sport.");
+    const windowHours = Math.min(5, Math.max(1, Number($("#timeWindow").value || 2)));
+    const cacheKey = "odds-" + enabled.slice().sort().join(",") + "-" + windowHours;
+    const cached = oddsCache.get(cacheKey);
+    let events;
+    if (cached && Date.now()-cached.at < 3*60*1000) events=cached.data;
+    else { events=await fetchOddsEvents(); oddsCache.set(cacheKey,{at:Date.now(),data:events}); }
+    const now=Date.now(), start=now+5*60*1000, limit=now+windowHours*3600000, candidates=[];
+    for (const event of events) {
+      const sportKey=event.sport_key||"", title=event.sport_title||sportKey;
+      if (!sportAllowed(sportKey,title,enabled)) continue;
+      const kickoff=Date.parse(event.commence_time||"");
+      if (!Number.isFinite(kickoff)||kickoff<start||kickoff>limit) continue;
+      const home=event.home_team||"", away=event.away_team||"";
+      if (!home||!away||filterExcluded([{home,away}],exclude).length===0) continue;
+      const {averages,probs}=eventOutcomes(event);
+      const sport=sportKey.startsWith("soccer_")?"soccer":sportKey.startsWith("tennis_")?"tennis":"basketball";
+      const options=[];
+      if (sport==="soccer") {
+        const h=averages.get(home)||0,d=averages.get("Draw")||0,a=averages.get(away)||0;
+        const ph=probs.get(home)||0,pd=probs.get("Draw")||0,pa=probs.get(away)||0;
+        const rangeMin=sport==="soccer"?1.38:1.35;
+        if (h>1&&h>=rangeMin&&h<=1.72) options.push({selection:"Výhra domácích (1)",odds:h,prob:ph});
+        const dc=h>1&&d>1?1/((1/h)+(1/d)):0, pdc=ph+pd;
+        if(dc>=1.38&&dc<=1.72)options.push({selection:"Neprohra domácích (1X)",odds:dc,prob:pdc});
+      } else {
+        const min=1.35;
+        for(const team of [home,away]) {
+          const odds=averages.get(team)||0,prob=probs.get(team)||0;
+          if(odds>=min&&odds<=1.72)options.push({selection:(team===home?"Výhra domácích":"Výhra hostů"),odds,prob});
+        }
+      }
+      if (!options.length) continue;
+      options.sort((a,b)=>b.prob-a.prob);
+      const choice=options[0];
+      candidates.push({home,away,match:home+" vs "+away,league:title,sport,sport_key:sportKey,
+        selection:choice.selection,odds:round2(choice.odds),probability:choice.prob,
+        commence:event.commence_time||"",commence_time:event.commence_time||""});
+    }
+    return filterExcluded(candidates,exclude);
   }
 
   function localDateOffset(days) {
@@ -868,27 +947,22 @@
   }
 
   function pickPair(pool, targetProduct) {
-    const usable = pool
-      .filter(c => Number(c.odds) > 1)
-      .sort((a, b) => a.odds - b.odds)
-      .slice(0, 120);
+    const usable = pool.filter(c => Number(c.odds) > 1 && Number(c.probability) > 0)
+      .sort((a, b) => b.probability - a.probability).slice(0, 120);
 
     let best = null;
     let bestScore = Infinity;
-    let bestHighestLegOdds = Infinity;
+    let bestProbability = -Infinity;
     for (let i = 0; i < usable.length; i++) {
       for (let j = i + 1; j < usable.length; j++) {
         if (sameMatch(usable[i].home, usable[i].away, usable[j].home, usable[j].away)) continue;
         const product = usable[i].odds * usable[j].odds;
         const score = Math.abs(product - targetProduct);
-        const highestLegOdds = Math.max(usable[i].odds, usable[j].odds);
-        const closerToTarget = score < bestScore - 1e-9;
-        const equallyCloseButSafer = Math.abs(score - bestScore) <= 1e-9 &&
-          highestLegOdds < bestHighestLegOdds - 1e-9;
-        if (closerToTarget || equallyCloseButSafer) {
-          bestScore = score;
-          bestHighestLegOdds = highestLegOdds;
-          best = [usable[i], usable[j]];
+        const probability = usable[i].probability * usable[j].probability;
+        const inTargetBand = product >= 1.90 && product <= 2.50;
+        const bestInBand = best && best[0].odds * best[1].odds >= 1.90 && best[0].odds * best[1].odds <= 2.50;
+        if ((!bestInBand && inTargetBand) || (inTargetBand === bestInBand && (probability > bestProbability + 1e-9 || (Math.abs(probability-bestProbability)<=1e-9 && score<bestScore)))) {
+          bestScore = score; bestProbability = probability; best = [usable[i], usable[j]];
         }
       }
     }
@@ -903,13 +977,17 @@
       odds: round2(candidate.odds),
       real_odds: round2(candidate.odds),
       api_odds: round2(candidate.odds),
-      confidence_reason: "Fotbalový favorit s kurzem v bezpečném pásmu (průměr EU sázkových kanceláří).",
+      confidence_reason: "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
+      probability: candidate.probability || 0,
+      sport: candidate.sport || "soccer",
+      sport_key: candidate.sport_key || "",
       commence_time: candidate.commence || ""
     };
   }
 
   async function recommend() {
     if (state.busy) return;
+    if (latestPending()) { toast("Aktivní tiket už existuje – počkej na jeho vyhodnocení.", "err"); return; }
     const button = $("#recommendBtn");
     state.busy = true;
     setBusy(button, true, "Načítám zápasy a kurzy…", "🎯 Doporučit dnešní Double AKU");
@@ -920,7 +998,7 @@
         throw new Error("The Odds API našlo méně než 2 fotbalové tipy s dostupným kurzem v příštích 48 hodinách. Zkontroluj také kvótu API.");
       }
 
-      const pair = pickPair(pool, 2.00);
+      const pair = pickPair(pool, 2.20);
       if (!pair) throw new Error("Nepodařilo se sestavit dvojici z dostupných kurzů.");
 
       state.ticket = [toLeg(pair[0]), toLeg(pair[1])];
@@ -972,7 +1050,7 @@
   async function buildNewPair() {
     const pool = (await fetchCandidates(1.10, 1.65)).filter(c => c.odds >= 1.10 && c.odds <= 1.65);
     if (pool.length < 2) throw new Error("V nabídce není dost favoritů v pásmu 1.10–1.65.");
-    const pair = pickPair(pool, 2.00);
+    const pair = pickPair(pool, 2.20);
     if (!pair) throw new Error("Nepodařilo se sestavit novou dvojici.");
     return [toLeg(pair[0]), toLeg(pair[1])];
   }
@@ -1005,7 +1083,7 @@
       if (replaceIndex == null) replaceIndex = o1 <= o2 ? 0 : 1;
       const keptIndex = 1 - replaceIndex;
       const keptOdds = Number(state.ticket[keptIndex].odds);
-      const targetOdds = round2(2.00 / keptOdds);
+      const targetOdds = round2(2.20 / keptOdds);
 
       const exclude = state.ticket.map(leg => {
         const parts = String(leg.match || "").split(/\s+vs\.?\s+/i);
@@ -1391,7 +1469,12 @@
       '<span class="pill">' + done.length + '</span></div>' + body + source + '</section>';
   }
 
+  function updateRecommendationLock() {
+    const button = $("#recommendBtn"); if (button) button.disabled = !!latestPending() || state.busy;
+  }
+
   function renderAll() {
+    updateRecommendationLock();
     renderProgress();
     renderTicket();
     renderActive();
@@ -1416,6 +1499,8 @@
   }
 
   function openSettings() {
+    $("#repoName").value = REPO;
+    $("#baseStake").value = String(BASE_STAKE);
     $("#oddsKey").value = lsGet(LS.odds);
     $("#geminiKey").value = lsGet(LS.gemini);
     $("#githubToken").value = lsGet(LS.token);
@@ -1429,6 +1514,10 @@
 
   async function saveSettings() {
     const oldToken = lsGet(LS.token);
+    REPO = ($("#repoName").value.trim() || REPO_DEFAULT).replace(/^https?:\\/\\/github\\.com\\//, "").replace(/\\.git$/, "");
+    localStorage.setItem("GITHUB_REPO", REPO);
+    BASE_STAKE = Math.max(1, Number($("#baseStake").value) || 1000);
+    localStorage.setItem("BASE_STAKE", String(BASE_STAKE));
     lsSet(LS.odds, $("#oddsKey").value.trim());
     lsSet(LS.gemini, $("#geminiKey").value.trim());
     lsSet(LS.token, $("#githubToken").value.trim());
@@ -1463,6 +1552,11 @@
     else if (action === "open-settings") openSettings();
     else if (action === "close-settings") closeSettings();
     else if (action === "save-settings") saveSettings();
+  });
+
+  document.addEventListener("change", function(event) {
+    if (event.target.matches("[data-sport-filter]")) { localStorage.setItem("SPORT_FILTERS", JSON.stringify(selectedSports())); oddsCache.clear(); }
+    if (event.target.id === "timeWindow") { localStorage.setItem("TIME_WINDOW", event.target.value); oddsCache.clear(); }
   });
 
   document.addEventListener("input", function (event) {
