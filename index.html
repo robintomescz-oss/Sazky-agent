@@ -418,6 +418,8 @@
     sha: null,
     historyLoaded: false,
     ticket: null,
+    candidates: [],
+    selectedCandidates: [],
     aiComment: "",
     live: null,
     liveTicketId: null,
@@ -990,39 +992,66 @@
     if (latestPending()) { toast("Aktivní tiket už existuje – počkej na jeho vyhodnocení.", "err"); return; }
     const button = $("#recommendBtn");
     state.busy = true;
-    setBusy(button, true, "Načítám zápasy a kurzy…", "🎯 Doporučit dnešní Double AKU");
-
+    setBusy(button, true, "Načítám nabídku…", "🎯 Doporučit Double AKU (2 zápasy)");
     try {
-      const pool = await fetchCandidates(1.10, 1.65);
-      if (pool.length < 2) {
-        throw new Error("The Odds API našlo méně než 2 fotbalové tipy s dostupným kurzem v příštích 48 hodinách. Zkontroluj také kvótu API.");
-      }
-
-      const pair = pickPair(pool, 2.20);
-      if (!pair) throw new Error("Nepodařilo se sestavit dvojici z dostupných kurzů.");
-
-      state.ticket = [toLeg(pair[0]), toLeg(pair[1])];
-      state.aiComment = "";
-      renderTicket();
-      updateTicketSummary();
-      $("#ticketSection").scrollIntoView({ behavior: "smooth", block: "start" });
-      toast("Double AKU je připravený – přepiš kurzy z Tipsportu.", "ok");
-
-      fetchAiComment(state.ticket).then(comment => {
-        if (!comment) return;
-        state.aiComment = comment;
-        const el = $("#aiComment");
-        if (el) { el.textContent = "🤖 " + comment; el.style.display = "block"; }
-      }).catch(() => { /* AI je volitelná */ });
-    } catch (error) {
+      const pool = await fetchCandidates(1.35, 1.72);
+      pool.sort((a,b)=>(Number(b.probability)||0)-(Number(a.probability)||0));
+      state.candidates = pool.slice(0,5);
+      state.selectedCandidates = [];
+      state.ticket = null;
+      if (state.candidates.length < 2) throw new Error("V příštích nejvýše 5 hodinách jsou méně než 2 vhodné události s dostupnými kurzy.");
+      renderCandidates();
+      $("#ticketSection").scrollIntoView({behavior:"smooth",block:"start"});
+      toast("Našlo se "+state.candidates.length+" možností. Vyber přesně dvě.", "ok");
+    } catch(error) {
       toast(error.message, "err");
-      if (/API-Football klíč/.test(error.message)) openSettings();
+      if (/The Odds API klíč/.test(error.message)) openSettings();
     } finally {
       state.busy = false;
-      setBusy(button, false, "Stahuji kurzy…", "🎯 Doporučit dnešní Double AKU");
+      setBusy(button, false, "Načítám nabídku…", "🎯 Doporučit Double AKU (2 zápasy)");
+      updateRecommendationLock();
     }
   }
 
+  function renderCandidates() {
+    const section=$("#ticketSection");
+    const selected=state.selectedCandidates;
+    const cards=state.candidates.map((c,i)=>{
+      const isSelected=selected.includes(i);
+      const time=c.commence_time?new Date(c.commence_time).toLocaleString("cs-CZ",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"2-digit"}):"";
+      const pct=(Number(c.probability)*100).toFixed(1);
+      const sport=c.sport==="soccer"?"⚽ Fotbal":c.sport==="tennis"?"🎾 Tenis":"🏀 Basket";
+      return '<article class="leg candidate-card" style="border-color:'+(isSelected?"#22c55e":"var(--line)")+'">'+
+        '<div class="leg-top"><span class="leg-num">Možnost '+(i+1)+'</span><span class="league">'+esc(sport+" · "+c.league)+'</span></div>'+
+        '<div class="match">'+esc(c.match)+'</div>'+
+        '<div class="sel-row"><span class="chip">'+esc(c.selection)+'</span><span class="api-odds">Kurz '+fmtOdds(c.odds)+'</span></div>'+
+        '<div class="muted small">Odhad pravděpodobnosti: <b>'+pct+' %</b> · '+esc(time)+'</div>'+
+        '<button class="btn '+(isSelected?"btn-green":"btn-ghost")+'" style="margin-top:10px" data-action="select-candidate" data-index="'+i+'">'+(isSelected?"✓ Vybráno":"＋ Vybrat tip")+'</button>'+
+      '</article>';
+    }).join("");
+    section.innerHTML='<section class="card"><div class="ticket-head"><h2>📋 Tipy s nejvyšší důvěrou</h2><span class="pill">'+selected.length+'/2 vybráno</span></div>'+
+      '<p class="muted small">Zobrazeno až pět událostí s nejvyšší odhadovanou pravděpodobností. Vyber dvě různé události.</p>'+cards+
+      '<button class="btn btn-ghost" data-action="clear-candidates">Zrušit výběr</button></section>';
+  }
+
+  function selectCandidate(index) {
+    if (!Number.isInteger(index) || !state.candidates[index]) return;
+    if (state.selectedCandidates.includes(index)) state.selectedCandidates=state.selectedCandidates.filter(i=>i!==index);
+    else {
+      if (state.selectedCandidates.length>=2) { toast("Vybrat lze přesně dva tipy.", "err"); return; }
+      if (state.selectedCandidates.length===1) {
+        const other=state.candidates[state.selectedCandidates[0]];
+        if (sameMatch(other.home,other.away,state.candidates[index].home,state.candidates[index].away)) { toast("Vyber dvě různé události.", "err"); return; }
+      }
+      state.selectedCandidates.push(index);
+    }
+    if (state.selectedCandidates.length===2) {
+      state.ticket=state.selectedCandidates.map(i=>toLeg(state.candidates[i]));
+      state.aiComment="";
+      renderTicket();
+      toast("Dvojice připravena. Zkontroluj a případně uprav kurzy.", "ok");
+    } else renderCandidates();
+  }
   async function fetchAiComment(legs) {
     const key = lsGet(LS.gemini).trim();
     if (!key || legs.length !== 2) return "";
@@ -1341,6 +1370,7 @@
         '</div>' +
         '<div class="warning" id="ticketWarning">⚠️ Součin kurzů je pod 1.80. Vyměň slabší zápas – tiket ale zůstává na 2 zápasech.</div>' +
         '<div class="ticket-actions">' +
+          '<button class="btn btn-ghost" data-action="change-candidates">↩ Změnit výběr tipů</button>' +
           '<button class="btn btn-amber" id="swapWeakerBtn" data-action="swap-weaker">🔄 Vyměnit slabší zápas (kurz &lt; 1.80)</button>' +
           '<button class="btn btn-green" id="saveTicketBtn" data-action="confirm-ticket">✅ Potvrdit a uložit tiket</button>' +
         '</div>' +
@@ -1544,6 +1574,9 @@
     const action = target.dataset.action;
 
     if (action === "recommend") recommend();
+    else if (action === "select-candidate") selectCandidate(Number(target.dataset.index));
+    else if (action === "clear-candidates") { state.selectedCandidates = []; renderCandidates(); }
+    else if (action === "change-candidates") { state.ticket = null; state.selectedCandidates = []; renderCandidates(); }
     else if (action === "swap-weaker") performSwap(null, false);
     else if (action === "swap-leg") performSwap(Number(target.dataset.leg), true);
     else if (action === "confirm-ticket") confirmTicket();
