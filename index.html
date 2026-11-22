@@ -714,7 +714,7 @@
 
     const cacheKey = minOdds + "-" + maxOdds;
     const cached = oddsCache.get(cacheKey);
-    if (cached && Date.now() - cached.at < 3 * 60 * 1000) {
+    if (cached && Date.now() - cached.at < 15 * 60 * 1000) {
       return filterExcluded(cached.data, exclude);
     }
 
@@ -770,8 +770,8 @@
       throw new Error("The Odds API nevrátilo fotbalový zápas s výkopem během příštích 48 hodin.");
     }
 
-    // Omezíme placené dotazy na osm nejvytíženějších soutěží s blížícím se zápasem.
-    const selectedLeagues = leagues.slice(0, 8);
+    // Omezíme placené dotazy na šest nejvytíženějších soutěží s blížícím se zápasem.
+    const selectedLeagues = leagues.slice(0, 6);
     const oddsResults = await Promise.allSettled(selectedLeagues.map(async entry => {
       const url = apiUrl("/sports/" + encodeURIComponent(entry.sport.key) + "/odds");
       url.searchParams.set("regions", "eu");
