@@ -805,10 +805,14 @@
       };
     }
 
-    const dates = [...new Set([localDateOffset(0), localDateOffset(1)])];
+    const now = Date.now();
+    const today = new Date(now);
+    const endOfWindow = new Date(now + Math.min(5, Number(windowHours) || 5) * 3600000);
+    const dates = [localDateOffset(0)];
+    if (endOfWindow.toDateString() !== today.toDateString()) dates.push(localDateOffset(1));
     const rows = [];
     for (const date of dates) {
-      for (let page = 1; page <= 5; page++) {
+      for (let page = 1; page <= 3; page++) {
         const payload = await request("odds", { date, page, timezone: "Europe/Prague" });
         rows.push(...(payload.response || []));
         const totalPages = Number(payload.paging && payload.paging.total || 1);
@@ -816,7 +820,6 @@
       }
     }
     const livePayload = await request("odds/live", {});
-    const now = Date.now();
     const minStart = now + 5 * 60 * 1000;
     const maxStart = now + Math.min(5, Number(windowHours) || 5) * 3600000;
     const liveStartLimit = now - 5 * 3600000;
