@@ -170,7 +170,7 @@ def fetch_live_and_recent_matches():
     espn_leagues = [
         "eng.1", "eng.2", "esp.1", "ita.1", "ger.1", "fra.1",
         "ned.1", "por.1", "uefa.champions", "uefa.europa", "uefa.nations",
-        "fifa.worldq.uefa", "fifa.friendly", "bra.1", "arg.1", "usa.1"
+        "fifa.worldq.uefa", "fifa.friendly", "bra.1", "arg.1", "usa.1", "mex.1"
     ]
     dates_param = f"{(datetime.now() - timedelta(days=1)).strftime('%Y%m%d')}-{(datetime.now() + timedelta(days=1)).strftime('%Y%m%d')}"
 
@@ -435,7 +435,7 @@ def run_live_tracker():
                     all_finished = False
 
         # 4. Finální uzavření celého tiketu, pokud už oba zápasy skončily
-        if all_finished and items:
+        if (all_finished or any_lost) and items:
             ticket_won = not any_lost
             ticket["status"] = "won" if ticket_won else "lost"
             changed = True
