@@ -1220,38 +1220,46 @@
   }
 
   async function fetchEspnMatches() {
-    const leagues = [
-      "eng.1", "eng.2", "esp.1", "ita.1", "ger.1", "fra.1",
-      "ned.1", "por.1", "uefa.champions", "uefa.europa", "uefa.nations",
-      "fifa.worldq.uefa", "fifa.friendly", "bra.1", "arg.1", "usa.1", "mex.1"
+    const dates=espnDateParam();
+    const feeds=[
+      ...["eng.1","eng.2","esp.1","ita.1","ger.1","fra.1","ned.1","por.1","uefa.champions","uefa.europa","uefa.nations","fifa.worldq.uefa","fifa.friendly","bra.1","arg.1","usa.1","mex.1"].map(x=>({path:"soccer/"+x,sport:"soccer"})),
+      {path:"tennis/atp",sport:"tennis"},{path:"tennis/wta",sport:"tennis"},
+      {path:"basketball/nba",sport:"basketball"},{path:"basketball/euroleague",sport:"basketball"},
+      {path:"basketball/mens-college-basketball",sport:"basketball"}
     ];
-    const dates = espnDateParam();
-    const timeout = (typeof AbortSignal !== "undefined" && AbortSignal.timeout) ? AbortSignal.timeout(9000) : undefined;
-
-    const results = await Promise.allSettled(leagues.map(slug =>
-      fetch("https://site.api.espn.com/apis/site/v2/sports/soccer/" + slug + "/scoreboard?dates=" + dates, { signal: timeout })
-        .then(res => res.ok ? res.json() : null)
-    ));
-
-    const matches = [];
-    for (const result of results) {
-      if (result.status !== "fulfilled" || !result.value) continue;
-      for (const ev of result.value.events || []) {
-        const status = ev.status || {};
-        const stateName = (status.type && status.type.state) || "";
-        const comps = (ev.competitions && ev.competitions[0] && ev.competitions[0].competitors) || [];
-        if (comps.length !== 2) continue;
-        const homeComp = comps.find(c => c.homeAway === "home") || comps[0];
-        const awayComp = comps.find(c => c.homeAway === "away") || comps[1];
+    const timeout=(typeof AbortSignal!=="undefined"&&AbortSignal.timeout)?AbortSignal.timeout(10000):undefined;
+    const results=await Promise.allSettled(feeds.map(f=>fetch("https://site.api.espn.com/apis/site/v2/sports/"+f.path+"/scoreboard?dates="+dates,{signal:timeout}).then(r=>r.ok?r.json():null).then(data=>({data,sport:f.sport}))));
+    const matches=[];
+    for(const result of results) {
+      if(result.status!=="fulfilled"||!result.value||!result.value.data)continue;
+      for(const ev of result.value.data.events||[]) {
+        const status=ev.status||{}, comps=(ev.competitions&&ev.competitions[0]&&ev.competitions[0].competitors)||[];
+        if(comps.length!==2)continue;
+        const home=comps.find(c=>c.homeAway==="home")||comps[0], away=comps.find(c=>c.homeAway==="away")||comps[1];
         matches.push({
-          home: homeComp.team && homeComp.team.displayName || "",
-          away: awayComp.team && awayComp.team.displayName || "",
-          state: stateName,
-          homeGoals: parseInt(homeComp.score, 10) || 0,
-          awayGoals: parseInt(awayComp.score, 10) || 0,
-          clock: status.displayClock || (status.type && status.type.shortDetail) || ""
+          home:(home.athlete&&home.athlete.displayName)||(home.team&&home.team.displayName)||home.displayName||"",
+          away:(away.athlete&&away.athlete.displayName)||(away.team&&away.team.displayName)||away.displayName||"",
+          state:(status.type&&status.type.state)||"",homeGoals:parseInt(home.score,10)||0,awayGoals:parseInt(away.score,10)||0,
+          clock:status.displayClock||(status.type&&status.type.shortDetail)||"",sport:result.value.sport
         });
       }
+    }
+    return matches;
+  }
+
+  async function fetchOddsScores(pending) {
+    const key=lsGet(LS.odds).trim(); if(!key)return [];
+    const sportKeys=[...new Set((pending.ticket||[]).map(x=>x.sport_key).filter(Boolean))];
+    const results=await Promise.allSettled(sportKeys.map(async keyName=>{
+      const url=new URL("https://api.the-odds-api.com/v4/sports/"+encodeURIComponent(keyName)+"/scores/");
+      url.searchParams.set("apiKey",key);url.searchParams.set("daysFrom","2");
+      const res=await fetch(url.toString(),{cache:"no-store"});if(!res.ok)throw new Error("scores HTTP "+res.status);return res.json();
+    }));
+    const matches=[];
+    for(const result of results)if(result.status==="fulfilled")for(const ev of result.value||[]) {
+      const scores=ev.scores||[], h=scores.find(x=>x.name===ev.home_team), a=scores.find(x=>x.name===ev.away_team);
+      const hg=parseInt(h&&h.score,10), ag=parseInt(a&&a.score,10);if(!Number.isFinite(hg)||!Number.isFinite(ag))continue;
+      matches.push({home:ev.home_team,away:ev.away_team,homeGoals:hg,awayGoals:ag,state:ev.completed?"post":"in",clock:ev.completed?"KONEC":"The Odds API",sport:ev.sport_key});
     }
     return matches;
   }
@@ -1289,7 +1297,8 @@
     const button = $("#refreshLiveBtn");
     setBusy(button, true, "Načítám live skóre…", "🔄 Obnovit live skóre");
     try {
-      const matches = await fetchEspnMatches();
+      const [espn, oddsScores] = await Promise.all([fetchEspnMatches(), fetchOddsScores(pending)]);
+      const matches = oddsScores.concat(espn);
       state.live = matches;
       state.liveTicketId = pending.id;
       renderActive();
@@ -1299,6 +1308,22 @@
     } finally {
       setBusy($("#refreshLiveBtn"), false, "Načítám live skóre…", "🔄 Obnovit live skóre");
     }
+  }
+
+  async function setManualResult(index, result) {
+    const pending=latestPending();
+    if(!pending||!["won","lost"].includes(result)||(pending.ticket||[])[index]==null)return;
+    pending.ticket[index].result=result;
+    try { state.history=await saveHistory(state.history,"Ruční výsledek tiketu #"+pending.id);renderAll();toast("Výsledek zápasu uložen.","ok"); }
+    catch(error){toast("Výsledek se nepodařilo uložit: "+error.message,"err");}
+  }
+
+  async function closeManualEvaluation() {
+    const pending=latestPending(),legs=pending&&(pending.ticket||[]).slice(0,2);
+    if(!pending||!legs||legs.length!==2||legs.some(x=>!["won","lost"].includes(x.result))){toast("Nejdřív nastav výsledek obou zápasů.","err");return;}
+    pending.status=legs.some(x=>x.result==="lost")?"lost":"won";
+    try {state.history=await saveHistory(state.history,"Uzavřeno vyhodnocení tiketu #"+pending.id);state.live=null;renderAll();toast("Tiket uzavřen jako "+pending.status.toUpperCase()+".","ok");}
+    catch(error){pending.status="pending";toast("Tiket se nepodařilo uložit: "+error.message,"err");}
   }
 
   /* ---------- Vykreslování ---------- */
@@ -1437,9 +1462,11 @@
         }
       }
 
+      const manual=leg.result||"";
       return '<div class="live-leg">' +
         '<div><div class="name">' + esc(leg.match) + '</div>' +
-        '<div class="pick">' + esc(leg.selection) + ' · kurz ' + fmtOdds(leg.real_odds || leg.odds) + ' · ' + esc(leg.league || "") + '</div></div>' +
+        '<div class="pick">' + esc(leg.selection) + ' · kurz ' + fmtOdds(leg.real_odds || leg.odds) + ' · ' + esc(leg.league || "") + '</div>' +
+        '<div><button class="mini" data-action="manual-result" data-leg="'+i+'" data-result="won">✅ Výhra</button> <button class="mini" data-action="manual-result" data-leg="'+i+'" data-result="lost">❌ Prohra</button> '+(manual?'<span class="muted small">Ruční výsledek: '+(manual==="won"?"výhra":"prohra")+'</span>':'')+'</div></div>' +
         '<div class="live-state">' + stateHtml + '</div>' +
       '</div>';
     }).join("");
@@ -1455,7 +1482,8 @@
         '</div>' +
         legsHtml +
         '<div style="margin-top:12px">' +
-          '<button class="btn btn-ghost" id="refreshLiveBtn" data-action="refresh-live">🔄 Obnovit live skóre</button>' +
+          '<button class="btn btn-ghost" id="refreshLiveBtn" data-action="refresh-live">🔄 Zkontrolovat výsledky</button>' +
+          '<button class="btn btn-green" data-action="close-evaluation" '+(legs.length!==2||legs.some(x=>!x.result)?'disabled':'')+'>🏁 Uzavřít vyhodnocení</button>' +
         '</div>' +
         '<p class="hint" style="margin-top:9px">Skóre z veřejného ESPN API. Hlášení o výkopu a gólech posílá <code>live_tracker.py</code> na Telegram.</p>' +
       '</section>';
@@ -1581,6 +1609,8 @@
     else if (action === "swap-leg") performSwap(Number(target.dataset.leg), true);
     else if (action === "confirm-ticket") confirmTicket();
     else if (action === "refresh-live") refreshLive();
+    else if (action === "manual-result") setManualResult(Number(target.dataset.leg),target.dataset.result);
+    else if (action === "close-evaluation") closeManualEvaluation();
     else if (action === "reload-history") loadHistory();
     else if (action === "open-settings") openSettings();
     else if (action === "close-settings") closeSettings();
