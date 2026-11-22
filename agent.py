@@ -213,16 +213,17 @@ def build_new_double_pair():
         return None
 
     best = None
-    best_diff = None
+    best_rank = None
     for i in range(len(pool)):
         for j in range(i + 1, len(pool)):
             if same_match(pool[i]["home"], pool[i]["away"], pool[j]["home"], pool[j]["away"]):
                 continue
             product = float(pool[i]["real_odds"]) * float(pool[j]["real_odds"])
-            diff = abs(product - 2.20)
-            if best_diff is None or diff < best_diff:
-                best_diff = diff
-                best = (pool[i], pool[j])
+            probability = float(pool[i].get("probability", 0)) * float(pool[j].get("probability", 0))
+            in_target = 2.05 <= product <= 2.45
+            rank = (1 if in_target else 0, probability, -abs(product - 2.20))
+            if best_rank is None or rank > best_rank:
+                best_rank, best = rank, (pool[i], pool[j])
 
     if not best:
         return None
@@ -232,7 +233,7 @@ def build_new_double_pair():
         "ticket": legs,
         "total_odds": round(legs[0]["real_odds"] * legs[1]["real_odds"], 2),
         "analysis_summary": "Celá dvojice byla přestavěna, protože oba původní zápasy měly kurz pod 1.30.",
-        "replacement_note": "Vygenerována zcela nová dvojice 2 zápasů (pásmo 1.48–1.72, součin ~2.15)."
+        "replacement_note": "Vygenerována zcela nová dvojice 2 zápasů (pásma 1.35–1.72, součin ~2.20)."
     }
 
 
@@ -284,18 +285,20 @@ def replace_weak_leg_for_double(current_ticket, leg1_odds, leg2_odds=None):
 
     kept_idx = 1 - weaker_idx
     kept_odds = odds1 if kept_idx == 0 else odds2
-    target_odds = round(2.15 / kept_odds, 2)
+    target_odds = round(2.20 / kept_odds, 2)
 
     excluded = _ticket_leg_exclusions(legs)
-    candidates = fetch_odds_candidates(1.42, 1.78, exclude_matches=excluded)
+    candidates = fetch_odds_candidates(1.35, 1.72, hours=5, exclude_matches=excluded)
     if not candidates:
         print("The Odds API nevrátilo žádného vhodného náhradníka v pásmu 1.42–1.78.")
         return current_ticket
 
-    best = min(
-        candidates,
-        key=lambda c: (abs(float(c["real_odds"]) - target_odds), float(c["real_odds"]))
-    )
+    candidates.sort(key=lambda c: (
+        0 if abs(float(c["real_odds"]) * kept_odds - 2.20) <= 0.25 else 1,
+        -float(c.get("probability", 0)),
+        abs(float(c["real_odds"]) - target_odds)
+    ))
+    best = candidates[0]
 
     legs[kept_idx]["odds"] = round(kept_odds, 2)
     legs[kept_idx]["real_odds"] = round(kept_odds, 2)
