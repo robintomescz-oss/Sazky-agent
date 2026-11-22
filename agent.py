@@ -195,7 +195,10 @@ def _make_leg(candidate):
         "selection": candidate.get("recommended_selection", "Výhra domácích (1)"),
         "odds": odds,
         "real_odds": odds,
-        "confidence_reason": candidate.get("confidence_reason", "Bezpečný favorit v kurzovém pásmu."),
+        "confidence_reason": candidate.get("confidence_reason", "Favorit podle tržní pravděpodobnosti."),
+        "probability": candidate.get("probability", 0),
+        "sport": candidate.get("sport", "soccer"),
+        "sport_key": candidate.get("sport_key", ""),
         "commence_time": candidate.get("commence_time", "")
     }
 
