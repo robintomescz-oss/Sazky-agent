@@ -718,77 +718,126 @@
       return filterExcluded(cached.data, exclude);
     }
 
-    const url = new URL("https://api.the-odds-api.com/v4/sports/upcoming/odds");
-    url.searchParams.set("apiKey", key);
-    url.searchParams.set("regions", "eu");
-    url.searchParams.set("markets", "h2h");
-    url.searchParams.set("oddsFormat", "decimal");
-
-    const res = await fetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) {
-      let text = "";
-      try { text = (await res.text()).slice(0, 160); } catch (e) { /* ignore */ }
-      if (res.status === 401) throw new Error("The Odds API: neplatný ODDS_API_KEY");
-      if (res.status === 429) throw new Error("The Odds API: došly kredity nebo příliš mnoho požadavků");
-      throw new Error("The Odds API " + res.status + (text ? ": " + text : ""));
-    }
-
-    const events = await res.json();
+    const apiBase = "https://api.the-odds-api.com/v4";
     const now = Date.now();
     const limit = now + 48 * 60 * 60 * 1000;
+    const apiUrl = (path) => {
+      const url = new URL(apiBase + path);
+      url.searchParams.set("apiKey", key);
+      return url;
+    };
+    const checkResponse = async (res) => {
+      if (res.ok) return;
+      if (res.status === 401) throw new Error("The Odds API: neplatný ODDS_API_KEY");
+      if (res.status === 429) throw new Error("The Odds API: došly kredity nebo příliš mnoho požadavků");
+      let detail = "";
+      try { detail = (await res.text()).slice(0, 120); } catch (e) { /* ignore */ }
+      throw new Error("The Odds API " + res.status + (detail ? ": " + detail : ""));
+    };
+
+    // Endpoint /sports/upcoming/odds vrací pouze osm nejbližších zápasů napříč sporty.
+    // Nejprve proto bezplatně zjistíme fotbalové ligy s dnešními zápasy a až pak stahujeme kurzy.
+    const sportsResponse = await fetch(apiUrl("/sports"), { cache: "no-store" });
+    await checkResponse(sportsResponse);
+    const sports = (await sportsResponse.json()).filter(s =>
+      String(s.key || "").startsWith("soccer_") && s.active !== false
+    );
+    if (!sports.length) throw new Error("The Odds API teď nehlásí žádnou aktivní fotbalovou soutěž.");
+
+    const eventLookups = await Promise.allSettled(sports.map(async sport => {
+      const response = await fetch(apiUrl("/sports/" + encodeURIComponent(sport.key) + "/events"), { cache: "no-store" });
+      await checkResponse(response);
+      const events = await response.json();
+      const upcoming = (Array.isArray(events) ? events : []).filter(ev => {
+        const time = Date.parse(ev.commence_time || "");
+        return Number.isFinite(time) && time >= now && time <= limit;
+      });
+      return { sport, events: upcoming };
+    }));
+
+    const leagues = eventLookups
+      .filter(x => x.status === "fulfilled" && x.value.events.length)
+      .map(x => x.value)
+      .sort((a, b) => b.events.length - a.events.length ||
+        Date.parse(a.events[0].commence_time) - Date.parse(b.events[0].commence_time));
+    if (!leagues.length) {
+      const failure = eventLookups.find(x => x.status === "rejected");
+      if (failure) throw failure.reason;
+      throw new Error("The Odds API nevrátilo fotbalový zápas s výkopem během příštích 48 hodin.");
+    }
+
+    // Omezíme placené dotazy na osm nejvytíženějších soutěží s blížícím se zápasem.
+    const selectedLeagues = leagues.slice(0, 8);
+    const oddsResults = await Promise.allSettled(selectedLeagues.map(async entry => {
+      const url = apiUrl("/sports/" + encodeURIComponent(entry.sport.key) + "/odds");
+      url.searchParams.set("regions", "eu");
+      url.searchParams.set("markets", "h2h");
+      url.searchParams.set("oddsFormat", "decimal");
+      const response = await fetch(url, { cache: "no-store" });
+      await checkResponse(response);
+      return await response.json();
+    }));
+
     const candidates = [];
+    let successfulOddsFeeds = 0;
+    let firstOddsError = null;
+    for (const result of oddsResults) {
+      if (result.status !== "fulfilled") {
+        firstOddsError = firstOddsError || result.reason;
+        continue;
+      }
+      successfulOddsFeeds++;
+      for (const ev of (Array.isArray(result.value) ? result.value : [])) {
+        const commence = Date.parse(ev.commence_time || "");
+        if (!String(ev.sport_key || "").startsWith("soccer_") ||
+            !Number.isFinite(commence) || commence < now || commence > limit) continue;
 
-    for (const ev of Array.isArray(events) ? events : []) {
-      if (!String(ev.sport_key || "").startsWith("soccer_")) continue;
+        const home = ev.home_team || "";
+        const away = ev.away_team || "";
+        if (!home || !away) continue;
 
-      const commence = ev.commence_time ? Date.parse(ev.commence_time) : NaN;
-      if (!Number.isFinite(commence) || commence < now || commence > limit) continue;
+        const homePrices = [], drawPrices = [], awayPrices = [];
+        for (const bookmaker of ev.bookmakers || []) {
+          for (const market of bookmaker.markets || []) {
+            if (market.key !== "h2h") continue;
+            const prices = {};
+            for (const outcome of market.outcomes || []) prices[outcome.name] = Number(outcome.price);
+            const h = Number(prices[home]), d = Number(prices.Draw), a = Number(prices[away]);
+            if (Number.isFinite(h) && Number.isFinite(d) && Number.isFinite(a) && h > 1 && d > 1 && a > 1) {
+              homePrices.push(h); drawPrices.push(d); awayPrices.push(a);
+            }
+          }
+        }
+        if (!homePrices.length) continue;
 
-      const home = ev.home_team || "";
-      const away = ev.away_team || "";
-      if (!home || !away) continue;
-
-      const homePrices = [], drawPrices = [], awayPrices = [];
-      for (const bookmaker of ev.bookmakers || []) {
-        for (const market of bookmaker.markets || []) {
-          if (market.key !== "h2h") continue;
-          const prices = {};
-          for (const outcome of market.outcomes || []) prices[outcome.name] = Number(outcome.price);
-          const h = Number(prices[home]), d = Number(prices.Draw), a = Number(prices[away]);
-          if (Number.isFinite(h) && Number.isFinite(d) && Number.isFinite(a) && h > 1 && d > 1 && a > 1) {
-            homePrices.push(h); drawPrices.push(d); awayPrices.push(a);
+        const avg = list => list.reduce((sum, value) => sum + value, 0) / list.length;
+        const avgHome = round2(avg(homePrices));
+        const avgDraw = round2(avg(drawPrices));
+        const avgAway = round2(avg(awayPrices));
+        const dc1x = round2(1 / ((1 / avgHome) + (1 / avgDraw)));
+        const dcx2 = round2(1 / ((1 / avgAway) + (1 / avgDraw)));
+        const base = {
+          home, away, match: home + " vs " + away,
+          league: ev.sport_title || "Fotbal",
+          commence: ev.commence_time,
+          context: "1: " + avgHome + " | X: " + avgDraw + " | 2: " + avgAway + " | 1X: " + dc1x + " | X2: " + dcx2
+        };
+        const options = [
+          ["Výhra domácích (1)", avgHome],
+          ["Remíza (X)", avgDraw],
+          ["Výhra hostů (2)", avgAway],
+          ["Neprohra domácích (1X)", dc1x],
+          ["Neprohra hostů (X2)", dcx2]
+        ];
+        for (const [selection, odds] of options) {
+          if (odds >= minOdds && odds <= maxOdds) {
+            candidates.push(Object.assign({}, base, { selection, odds }));
           }
         }
       }
-      if (!homePrices.length) continue;
-
-      const avg = list => list.reduce((sum, v) => sum + v, 0) / list.length;
-      const avgHome = round2(avg(homePrices));
-      const avgDraw = round2(avg(drawPrices));
-      const avgAway = round2(avg(awayPrices));
-      const dc1x = round2(1 / ((1 / avgHome) + (1 / avgDraw)));
-
-      const base = {
-        home, away,
-        match: home + " vs " + away,
-        league: ev.sport_title || "Fotbal",
-        commence: ev.commence_time,
-        context: "1: " + avgHome + " | X: " + avgDraw + " | 2: " + avgAway + " | 1X: " + dc1x
-      };
-
-      if (avgHome >= minOdds && avgHome <= maxOdds) {
-        candidates.push(Object.assign({}, base, {
-          selection: "Výhra domácích (1)",
-          odds: avgHome
-        }));
-      } else if (dc1x >= minOdds && dc1x <= maxOdds) {
-        candidates.push(Object.assign({}, base, {
-          selection: "Neprohra domácích (1X)",
-          odds: dc1x
-        }));
-      }
     }
 
+    if (!successfulOddsFeeds && firstOddsError) throw firstOddsError;
     oddsCache.set(cacheKey, { at: Date.now(), data: candidates });
     return filterExcluded(candidates, exclude);
   }
