@@ -29,32 +29,5 @@
       }
     ],
     "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
-  },
-  {
-    "id": 2,
-    "date": "2026-11-22 07:14",
-    "total_odds": 1.99,
-    "status": "pending",
-    "ticket": [
-      {
-        "match": "Orgryte IS vs Kalmar FF",
-        "league": "Allsvenskan",
-        "selection": "Neprohra hostů (X2)",
-        "odds": 1.31,
-        "real_odds": 1.31,
-        "confidence_reason": "Fotbalový favorit s kurzem v bezpečném pásmu (průměr EU sázkových kanceláří).",
-        "commence_time": "2026-11-23T19:00:00+01:00"
-      },
-      {
-        "match": "Atletico Paranaense vs Remo",
-        "league": "Serie A",
-        "selection": "Výhra domácích (1)",
-        "odds": 1.52,
-        "real_odds": 1.52,
-        "confidence_reason": "Fotbalový favorit s kurzem v bezpečném pásmu (průměr EU sázkových kanceláří).",
-        "commence_time": "2026-11-22T20:00:00+01:00"
-      }
-    ],
-    "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
   }
 ]
