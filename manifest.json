@@ -1,7 +1,7 @@
 {
   "name": "Double AKU – Sázky agent",
   "short_name": "Double AKU",
-  "description": "Jednoduchá aplikace pro sestavení Double AKU tiketu – vždy přesně 2 zápasy, tmavý režim, ovládání jedním klepnutím.",
+  "description": "PWA pro sportovní Double AKU tipy na fotbal, tenis a basketbal.",
   "lang": "cs",
   "start_url": "./",
   "scope": "./",
@@ -9,7 +9,10 @@
   "orientation": "portrait-primary",
   "background_color": "#070b10",
   "theme_color": "#070b10",
-  "categories": ["sports", "utilities"],
+  "categories": [
+    "sports",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "icon-192.png",
