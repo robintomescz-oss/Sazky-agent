@@ -182,6 +182,7 @@
     color: #7dd3fc; border-radius: 9px; padding: 5px 9px; font-size: 13px; font-weight: 600;
   }
   .api-odds { color: var(--muted); font-size: 12px; }
+  .countdown { color: #7dd3fc; font-weight: 700; }
   .odds-field { display: block; }
   .odds-field > span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   .odds-field input {
@@ -459,6 +460,25 @@
   function fmtOdds(value) {
     const n = Number(value);
     return Number.isFinite(n) ? n.toFixed(2) : "";
+  }
+
+  function countdownText(start, isLive) {
+    if (isLive) return "Právě probíhá";
+    const time = Date.parse(start || "");
+    if (!Number.isFinite(time)) return "Čas začátku není dostupný";
+    const minutes = Math.ceil((time - Date.now()) / 60000);
+    if (minutes <= 0) return "Začátek už proběhl";
+    if (minutes < 1) return "Začíná za méně než minutu";
+    if (minutes < 60) return "Začíná za " + minutes + " min";
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return "Začíná za " + hours + " h" + (rest ? " " + rest + " min" : "");
+  }
+
+  function updateCountdowns() {
+    document.querySelectorAll("[data-countdown]").forEach(el => {
+      el.textContent = countdownText(el.dataset.start, el.dataset.live === "true");
+    });
   }
 
   function esc(value) {
@@ -1137,6 +1157,7 @@
         '<div class="match">'+esc(c.match)+'</div>'+
         '<div class="sel-row"><span class="chip">'+esc(c.selection)+'</span><span class="api-odds">Kurz '+fmtOdds(c.odds)+'</span></div>'+
         '<div class="muted small">Odhad pravděpodobnosti: <b>'+pct+' %</b> · '+esc(time)+'</div>'+
+        '<div class="countdown small" data-countdown data-start="'+esc(c.commence_time||"")' + '" data-live="'+(c.is_live?"true":"false")+'">'+esc(countdownText(c.commence_time,c.is_live))+'</div>'+
         '<button class="btn '+(isSelected?"btn-green":"btn-ghost")+'" style="margin-top:10px" data-action="select-candidate" data-index="'+i+'">'+(isSelected?"✓ Vybráno":"＋ Vybrat tip")+'</button>'+
       '</article>';
     }).join("");
@@ -1286,7 +1307,10 @@
         odds: round2(Number(leg.odds)),
         real_odds: round2(Number(leg.odds)),
         confidence_reason: leg.confidence_reason || "",
-        commence_time: leg.commence_time || ""
+        commence_time: leg.commence_time || "",
+        is_live: !!leg.is_live,
+        sport: leg.sport || "",
+        fixture_id: leg.fixture_id || null
       }));
 
       const maxId = state.history.reduce((max, t) => Math.max(max, Number(t.id) || 0), 0);
@@ -1517,6 +1541,7 @@
           '<button class="mini" data-action="swap-leg" data-leg="' + i + '" title="Vyměnit tento zápas" aria-label="Vyměnit zápas ' + (i + 1) + '">🔄</button>' +
         '</div>' +
         '<div class="match">' + esc(leg.match) + '</div>' +
+        '<div class="countdown small" data-countdown data-start="' + esc(leg.commence_time || "") + '" data-live="' + (leg.is_live ? "true" : "false") + '">' + esc(countdownText(leg.commence_time, leg.is_live)) + '</div>' +
         '<div class="sel-row">' +
           '<span class="chip">' + esc(leg.selection) + '</span>' +
           (leg.api_odds ? '<span class="api-odds">API kurz ' + fmtOdds(leg.api_odds) + '</span>' : '') +
@@ -1614,6 +1639,7 @@
       const manual=leg.result||"";
       return '<div class="live-leg">' +
         '<div><div class="name">' + esc(leg.match) + '</div>' +
+        '<div class="countdown small" data-countdown data-start="' + esc(leg.commence_time || "") + '" data-live="' + (leg.is_live ? "true" : "false") + '">' + esc(countdownText(leg.commence_time, leg.is_live)) + '</div>' +
         '<div class="pick">' + esc(leg.selection) + ' · kurz ' + fmtOdds(leg.real_odds || leg.odds) + ' · ' + esc(leg.league || "") + '</div>' +
         '<div><button class="mini" data-action="manual-result" data-leg="'+i+'" data-result="won">✅ Výhra</button> <button class="mini" data-action="manual-result" data-leg="'+i+'" data-result="lost">❌ Prohra</button> '+(manual?'<span class="muted small">Ruční výsledek: '+(manual==="won"?"výhra":"prohra")+'</span>':'')+'</div></div>' +
         '<div class="live-state">' + stateHtml + '</div>' +
@@ -1799,6 +1825,8 @@
   renderProgress();
   updateKeyStates();
   loadHistory({ silent: true });
+  updateCountdowns();
+  setInterval(updateCountdowns, 30000);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
