@@ -389,16 +389,17 @@ def fetch_matches():
 
 def get_current_stake_info():
     if not os.path.exists(HISTORY_FILE):
-        return 1, int(BASE_STAKE), "Krok 1/4 (Základní vklad 1 000 Kč)"
+        return 1, int(base_stake), "Krok 1/4 (Základní vklad 1 000 Kč)"
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8-sig") as f:
             history = json.load(f)
     except Exception:
-        return 1, int(BASE_STAKE), "Krok 1/4 (Základní vklad 1 000 Kč)"
+        return 1, int(base_stake), "Krok 1/4 (Základní vklad 1 000 Kč)"
 
+    base_stake = next((float(t.get("base_stake")) for t in reversed(history) if float(t.get("base_stake", 0) or 0) > 0), BASE_STAKE)
     evaluated = [t for t in history if t.get("status") in ["won", "lost"]]
     step = 1
-    next_stake = BASE_STAKE
+    next_stake = base_stake
     k2_payout = 0.0
 
     for t in evaluated:
@@ -410,11 +411,11 @@ def get_current_stake_info():
 
         if step == 1:
             if won:
-                net_profit = BASE_STAKE * (odds - 1.0)
+                net_profit = base_stake * (odds - 1.0)
                 next_stake = round(net_profit / 2.0, 2)
                 step = 2
             else:
-                next_stake = BASE_STAKE
+                next_stake = base_stake
                 step = 1
         elif step == 2:
             if won:
@@ -422,17 +423,17 @@ def get_current_stake_info():
                 next_stake = k2_payout
                 step = 3
             else:
-                next_stake = BASE_STAKE
+                next_stake = base_stake
                 step = 1
         elif step == 3:
             if won:
                 next_stake = round(k2_payout / 2.0, 2)
                 step = 4
             else:
-                next_stake = BASE_STAKE
+                next_stake = base_stake
                 step = 1
         elif step == 4:
-            next_stake = BASE_STAKE
+            next_stake = base_stake
             step = 1
 
     rounded = int(round(next_stake))
@@ -559,6 +560,7 @@ def save_ticket_to_history(ticket_data):
         "ticket": legs,
         "summary": ticket_data.get("analysis_summary")
     }
+    entry["base_stake"] = next((float(t.get("base_stake")) for t in reversed(history) if float(t.get("base_stake", 0) or 0) > 0), BASE_STAKE)
     history.append(entry)
 
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
