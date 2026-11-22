@@ -789,7 +789,7 @@
               else if (/^(away|2)$/i.test(label) || normalizeTeam(label) === normalizeTeam(away)) name = away;
               else if (/^(draw|x)$/i.test(label)) name = "Draw";
             } else {
-              const total = label.match(/^(over|under)\\s+([0-9]+(?:\\.[0-9]+)?)/i);
+              const total = label.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)/i);
               if (total) {
                 totalLine = total[2];
                 name = total[1].toLowerCase() + " " + total[2];
@@ -942,7 +942,7 @@
       if (!Number.isFinite(kickoff)||liveTooOld||(!event.is_live&&(kickoff<start||kickoff>limit))) continue;
       const home=event.home_team||"", away=event.away_team||"";
       if (!home||!away||filterExcluded([{home,away}],exclude).length===0) continue;
-      const {averages,probs}=eventOutcomes(event);
+      const {averages,probs,totals}=eventOutcomes(event);
       const sport=(sportKey.startsWith("soccer_")||sportKey.startsWith("apifootball_"))?"soccer":sportKey.startsWith("tennis_")?"tennis":"basketball";
       const options=[];
       const oddsMin=Math.max(1.01,Number(minOdds)||1.10);
@@ -956,7 +956,7 @@
         const xTwo=d>1&&a>1?1/((1/d)+(1/a)):0;
         if(oneX>=oddsMin&&oneX<=oddsMax)options.push({selection:"Neprohra domácích (1X)",odds:oneX,prob:ph+pd});
         if(xTwo>=oddsMin&&xTwo<=oddsMax)options.push({selection:"Neprohra hostů (X2)",odds:xTwo,prob:pd+pa});
-        for (const total of (eventOutcomes(event).totals || [])) {
+        for (const total of (totals || [])) {
           if (total.over>=oddsMin&&total.over<=oddsMax) options.push({selection:"Over "+total.line+" gólů",odds:total.over,prob:total.overProb});
           if (total.under>=oddsMin&&total.under<=oddsMax) options.push({selection:"Under "+total.line+" gólů",odds:total.under,prob:total.underProb});
         }
