@@ -1637,12 +1637,10 @@
         }
       }
 
-      const manual=leg.result||"";
       return '<div class="live-leg">' +
         '<div><div class="name">' + esc(leg.match) + '</div>' +
         '<div class="countdown small" data-countdown data-start="' + esc(leg.commence_time || "") + '" data-live="' + (leg.is_live ? "true" : "false") + '">' + esc(countdownText(leg.commence_time, leg.is_live)) + '</div>' +
-        '<div class="pick">' + esc(leg.selection) + ' · kurz ' + fmtOdds(leg.real_odds || leg.odds) + ' · ' + esc(leg.league || "") + '</div>' +
-        '<div><button class="mini" data-action="manual-result" data-leg="'+i+'" data-result="won">✅ Výhra</button> <button class="mini" data-action="manual-result" data-leg="'+i+'" data-result="lost">❌ Prohra</button> '+(manual?'<span class="muted small">Ruční výsledek: '+(manual==="won"?"výhra":"prohra")+'</span>':'')+'</div></div>' +
+        '<div class="pick">' + esc(leg.selection) + ' · kurz ' + fmtOdds(leg.real_odds || leg.odds) + ' · ' + esc(leg.league || "") + '</div></div>' +
         '<div class="live-state">' + stateHtml + '</div>' +
       '</div>';
     }).join("");
