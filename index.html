@@ -715,10 +715,15 @@
     for (const [name, value] of Object.entries(params || {})) {
       url.searchParams.set(name, String(value));
     }
-    const response = await fetch(url.toString(), {
-      headers: { "x-apisports-key": key },
-      cache: "no-store"
-    });
+    let response;
+    try {
+      response = await fetch(url.toString(), {
+        headers: { "x-apisports-key": key },
+        cache: "no-store"
+      });
+    } catch (error) {
+      throw new Error("API-Football: síťové spojení selhalo při " + path + ". Může jít o CORS nebo dočasné omezení API; zkus to za chvíli znovu.");
+    }
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
         throw new Error("API-Football odmítlo klíč nebo tento plán nemá přístup k požadovaným kurzům.");
@@ -785,7 +790,7 @@
     }
 
     const oddsLists = await Promise.all(dates.map(date =>
-      apiFootballPages("/odds", { date, timezone: "Europe/Prague" }, 3)
+      apiFootballPages("/odds", { date, timezone: "Europe/Prague" }, 2)
     ));
     const oddsByFixture = new Map();
     for (const item of oddsLists.flat()) {
