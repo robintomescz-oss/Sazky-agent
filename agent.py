@@ -565,8 +565,8 @@ def send_telegram(ticket_data, has_real_odds):
     if not ticket_data or not ticket_data.get("ticket"):
         message = "ℹ️ V aktuální nabídce teď nejsou žádné zápasy splňující bezpečná kurzová kritéria (1.42–1.65)."
     else:
-        source_badge = "Reálné EU kurzy (Cíl ~2.20)" if has_real_odds else "Orientační kurzy (Cíl ~2.20)"
-        lines = [f"🎯 *Fotbalový Double AKU tiket*\n_{source_badge}_\n"]
+        source_badge = "Fotbal / tenis / basket · EU kurzy (cíl ~2.20)" if has_real_odds else "Orientační kurzy (cíl ~2.20)"
+        lines = [f"🎯 *Sportovní Double AKU tiket*\n_{source_badge}_\n"]
         for idx, item in enumerate(ticket_data["ticket"], 1):
             lines.append(f"{idx}. ⚽ *{item.get('match', '')}* ({item.get('league', '')})")
             lines.append(f"   Tip: `{item.get('selection', '')}` | Kurz: `{item.get('odds', '')}`")
@@ -605,16 +605,23 @@ def send_telegram(ticket_data, has_real_odds):
 
 
 if __name__ == "__main__":
-    print("1/4 Stahuji zápasy a reálné kurzy (min. 1.42)...")
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8-sig") as f:
+                existing = json.load(f)
+            if any(item.get("status") == "pending" for item in existing):
+                print("Existuje pending tiket; nový tiket se nevytvoří.")
+                raise SystemExit(0)
+        except (json.JSONDecodeError, OSError):
+            print("Historie je nečitelná; nový tiket se nevytvoří kvůli bezpečnosti.")
+            raise SystemExit(1)
+    print("1/4 Stahuji události a tržní kurzy (max. 5 hodin)...")
     matches, has_real_odds = fetch_matches()
-    print(f"Celkem připraveno {len(matches)} kandidátů (reálné kurzy: {has_real_odds}).")
-
-    print("2/4 Analyzuji nabídku a sestavuji tiket...")
+    print(f"Celkem připraveno {len(matches)} kandidátů (ověřené kurzy: {has_real_odds}).")
     ticket = generate_ticket(matches, has_real_odds)
-
-    print("3/4 Ukládám do historie...")
+    if not ticket:
+        send_telegram(None, has_real_odds)
+        raise SystemExit(0)
     save_ticket_to_history(ticket)
-
-    print("4/4 Odesílám na Telegram...")
     send_telegram(ticket, has_real_odds)
     print("Hotovo!")
