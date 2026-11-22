@@ -411,7 +411,6 @@
   const HISTORY_PATH = "tickets_history.json";
   let BASE_STAKE = Math.max(1, Number(localStorage.getItem("BASE_STAKE")) || 1000);
   const LS = { odds: "ODDS_API_KEY", gemini: "GEMINI_API_KEY", token: "GITHUB_TOKEN" };
-  if (!localStorage.getItem(LS.odds) && localStorage.getItem("API_FOOTBALL_KEY")) localStorage.setItem(LS.odds, localStorage.getItem("API_FOOTBALL_KEY"));
 
   const state = {
     history: [],
@@ -652,7 +651,7 @@
       renderProgress();
       renderActive();
       $("#historySection").innerHTML =
-        '<section class="card"><h2>📜 Uzavřené tikety</h2><div class="error-box">Historii se nepodařilo načíst: ' +
+        '<section class="card"><h2>📜 Uzavřené tikety</h2><button class="mini" data-action="export-json" title="Export JSON zálohy">⬇️</button><div class="error-box">Historii se nepodařilo načíst: ' +
         esc(error.message) + '</div><p class="hint" style="margin-top:10px">' +
         (token ? "Zkontroluj GITHUB_TOKEN v nastavení ⚙️." : "Veřejná historie není dostupná. Zkus obnovit ⟳.") +
         "</p></section>";
@@ -833,114 +832,6 @@
     date.setDate(date.getDate() + days);
     const pad = n => String(n).padStart(2, "0");
     return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate());
-  }
-
-  async function fetchCandidates(minOdds, maxOdds, exclude) {
-    const key = lsGet(LS.odds).trim();
-    if (!key) throw new Error("Chybí API-Football klíč – otevři nastavení ⚙️");
-
-    const cacheKey = "api-football-" + minOdds + "-" + maxOdds;
-    const cached = oddsCache.get(cacheKey);
-    if (cached && Date.now() - cached.at < 15 * 60 * 1000) {
-      return filterExcluded(cached.data, exclude);
-    }
-
-    const now = Date.now();
-    const limit = now + 48 * 60 * 60 * 1000;
-    const dates = [0, 1].map(localDateOffset);
-    const fixtureLists = await Promise.all(dates.map(date =>
-      apiFootballPages("/fixtures", { date, timezone: "Europe/Prague" }, 8)
-    ));
-    const fixtures = fixtureLists.flat();
-    const fixturesById = new Map();
-    for (const fixture of fixtures) {
-      const f = fixture.fixture || {};
-      const teams = fixture.teams || {};
-      const kickoff = Date.parse(f.date || "");
-      const status = String((f.status || {}).short || "");
-      if (!Number.isFinite(kickoff) || kickoff < now || kickoff > limit || status !== "NS") continue;
-      if (!teams.home || !teams.away) continue;
-      fixturesById.set(String(f.id), fixture);
-    }
-
-    const oddsLists = await Promise.all(dates.map(date =>
-      apiFootballPages("/odds", { date, timezone: "Europe/Prague" }, 2)
-    ));
-    const oddsByFixture = new Map();
-    for (const item of oddsLists.flat()) {
-      const id = String((item.fixture || {}).id || "");
-      if (id && fixturesById.has(id)) oddsByFixture.set(id, item);
-    }
-
-    const candidates = [];
-    const optionLabels = {
-      home: "Výhra domácích (1)",
-      draw: "Remíza (X)",
-      away: "Výhra hostů (2)",
-      homeDraw: "Neprohra domácích (1X)",
-      drawAway: "Neprohra hostů (X2)"
-    };
-    const optionValues = {
-      home: ["home", "1"],
-      draw: ["draw", "x"],
-      away: ["away", "2"],
-      homeDraw: ["home/draw", "home or draw", "1x"],
-      drawAway: ["draw/away", "away/draw", "draw or away", "x2"]
-    };
-
-    for (const [id, oddsItem] of oddsByFixture) {
-      const fixture = fixturesById.get(id);
-      const f = fixture.fixture || {};
-      const teams = fixture.teams || {};
-      const home = teams.home.name || "";
-      const away = teams.away.name || "";
-      if (!home || !away) continue;
-      const marketOdds = { home: [], draw: [], away: [], homeDraw: [], drawAway: [] };
-
-      for (const bookmaker of oddsItem.bookmakers || []) {
-        for (const bet of bookmaker.bets || []) {
-          const name = String(bet.name || "").toLowerCase();
-          if (!(name.includes("match winner") || name.includes("fulltime result") ||
-                name.includes("full-time result") || name === "1x2" || name.includes("double chance"))) continue;
-          for (const value of bet.values || []) {
-            if (value.suspended) continue;
-            const normalized = String(value.value || "").toLowerCase().replace(/\\s+/g, " ").trim();
-            const price = Number(String(value.odd || "").replace(",", "."));
-            if (!Number.isFinite(price) || price <= 1) continue;
-            for (const [kind, aliases] of Object.entries(optionValues)) {
-              if (aliases.includes(normalized)) marketOdds[kind].push(price);
-            }
-          }
-        }
-      }
-
-      const base = {
-        home, away, match: home + " vs " + away,
-        league: (fixture.league && fixture.league.name) || (oddsItem.league && oddsItem.league.name) || "Fotbal",
-        commence: f.date || "",
-        fixture_id: f.id
-      };
-      for (const [kind, prices] of Object.entries(marketOdds)) {
-        if (!prices.length) continue;
-        const odds = round2(prices.reduce((sum, value) => sum + value, 0) / prices.length);
-        if (odds < minOdds || odds > maxOdds) continue;
-        candidates.push(Object.assign({}, base, {
-          selection: optionLabels[kind],
-          odds,
-          confidence_reason: "Favorit podle průměrného kurzu API-Football."
-        }));
-      }
-    }
-
-    if (!fixturesById.size) {
-      throw new Error("API-Football nenašlo neodehraný fotbalový zápas v příštích 48 hodinách.");
-    }
-    if (!oddsByFixture.size) {
-      throw new Error("API-Football zatím nemá předzápasové kurzy pro dnešní zápasy. U některých soutěží jsou kurzy dostupné až 1–14 dní před výkopem.");
-    }
-
-    oddsCache.set(cacheKey, { at: Date.now(), data: candidates });
-    return filterExcluded(candidates, exclude);
   }
 
   function filterExcluded(candidates, exclude) {
@@ -1339,6 +1230,13 @@
     catch(error){pending.status="pending";toast("Tiket se nepodařilo uložit: "+error.message,"err");}
   }
 
+  function exportHistoryJson() {
+    const blob=new Blob([JSON.stringify(state.history,null,2)+"\n"],{type:"application/json"});
+    const url=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=url;a.download="tickets_history_backup.json";a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+
   /* ---------- Vykreslování ---------- */
 
   function renderProgress() {
@@ -1628,6 +1526,7 @@
     else if (action === "close-evaluation") closeManualEvaluation();
     else if (action === "delete-ticket") deleteTicketById(target.dataset.id);
     else if (action === "reload-history") loadHistory();
+    else if (action === "export-json") exportHistoryJson();
     else if (action === "open-settings") openSettings();
     else if (action === "close-settings") closeSettings();
     else if (action === "save-settings") saveSettings();
