@@ -389,7 +389,7 @@ def fetch_matches():
 
 def get_current_stake_info():
     if not os.path.exists(HISTORY_FILE):
-        return 1, int(base_stake), "Krok 1/4 (Základní vklad 1 000 Kč)"
+        return 1, int(BASE_STAKE), "Krok 1/4 (Základní vklad 1 000 Kč)"
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8-sig") as f:
             history = json.load(f)
