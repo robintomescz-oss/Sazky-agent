@@ -744,16 +744,20 @@
     );
     if (!sports.length) throw new Error("The Odds API teď nehlásí žádnou aktivní fotbalovou soutěž.");
 
-    const eventLookups = await Promise.allSettled(sports.map(async sport => {
-      const response = await fetch(apiUrl("/sports/" + encodeURIComponent(sport.key) + "/events"), { cache: "no-store" });
-      await checkResponse(response);
-      const events = await response.json();
-      const upcoming = (Array.isArray(events) ? events : []).filter(ev => {
-        const time = Date.parse(ev.commence_time || "");
-        return Number.isFinite(time) && time >= now && time <= limit;
-      });
-      return { sport, events: upcoming };
-    }));
+    const eventLookups = [];
+    for (let i = 0; i < sports.length; i += 8) {
+      const batch = await Promise.allSettled(sports.slice(i, i + 8).map(async sport => {
+        const response = await fetch(apiUrl("/sports/" + encodeURIComponent(sport.key) + "/events"), { cache: "no-store" });
+        await checkResponse(response);
+        const events = await response.json();
+        const upcoming = (Array.isArray(events) ? events : []).filter(ev => {
+          const time = Date.parse(ev.commence_time || "");
+          return Number.isFinite(time) && time >= now && time <= limit;
+        });
+        return { sport, events: upcoming };
+      }));
+      eventLookups.push(...batch);
+    }
 
     const leagues = eventLookups
       .filter(x => x.status === "fulfilled" && x.value.events.length)
@@ -889,13 +893,13 @@
     setBusy(button, true, "Stahuji kurzy…", "🎯 Doporučit dnešní Double AKU");
 
     try {
-      const pool = await fetchCandidates(1.42, 1.65);
+      const pool = await fetchCandidates(1.10, 2.00);
       if (pool.length < 2) {
-        throw new Error("V nabídce teď nejsou alespoň 2 fotbalové zápasy v pásmu 1.42–1.65.");
+        throw new Error("The Odds API našlo méně než 2 fotbalové tipy s dostupným kurzem v příštích 48 hodinách. Zkontroluj také kvótu API.");
       }
 
       const pair = pickPair(pool, 2.20);
-      if (!pair) throw new Error("Nepodařilo se sestavit dvojici z aktuální nabídky.");
+      if (!pair) throw new Error("Nepodařilo se sestavit dvojici z dostupných kurzů.");
 
       state.ticket = [toLeg(pair[0]), toLeg(pair[1])];
       state.aiComment = "";
