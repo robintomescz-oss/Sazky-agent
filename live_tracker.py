@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 FOOTBALL_DATA_API_KEY = os.getenv("FOOTBALL_DATA_API_KEY")
+ODDS_API_KEY = os.getenv("ODDS_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 HISTORY_FILE = "tickets_history.json"
@@ -213,6 +214,66 @@ def fetch_live_and_recent_matches():
         except Exception:
             continue
 
+    # Tenisové výsledky z ESPN: ATP a WTA.
+    for league in ("atp", "wta"):
+        try:
+            url = f"https://site.api.espn.com/apis/site/v2/sports/tennis/{league}/scoreboard?dates={dates_param}"
+            res = requests.get(url, timeout=8)
+            if res.status_code != 200:
+                continue
+            for ev in res.json().get("events", []):
+                comp = (ev.get("competitions") or [{}])[0]
+                competitors = comp.get("competitors", [])
+                if len(competitors) != 2:
+                    continue
+                home = next((x for x in competitors if x.get("homeAway") == "home"), competitors[0])
+                away = next((x for x in competitors if x.get("homeAway") == "away"), competitors[1])
+                status = ev.get("status", {})
+                state = (status.get("type") or {}).get("state", "")
+                try:
+                    hs, aw = int(home.get("score") or 0), int(away.get("score") or 0)
+                except (TypeError, ValueError):
+                    hs, aw = 0, 0
+                matches.append({
+                    "home": (home.get("athlete") or home.get("team") or {}).get("displayName") or home.get("displayName", ""),
+                    "away": (away.get("athlete") or away.get("team") or {}).get("displayName") or away.get("displayName", ""),
+                    "state": state, "home_goals": hs, "away_goals": aw,
+                    "clock": status.get("displayClock") or (status.get("type") or {}).get("shortDetail", ""),
+                    "sport": "tennis"
+                })
+        except Exception as exc:
+            print(f"ESPN tennis {league} scoreboard unavailable: {exc}")
+
+    # NBA, mužský basketbal ESPN scoreboard a dostupný EuroLeague feed.
+    for league in ("nba", "mens-college-basketball", "euroleague"):
+        try:
+            url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/{league}/scoreboard?dates={dates_param}"
+            res = requests.get(url, timeout=8)
+            if res.status_code != 200:
+                continue
+            for ev in res.json().get("events", []):
+                comp = (ev.get("competitions") or [{}])[0]
+                competitors = comp.get("competitors", [])
+                if len(competitors) != 2:
+                    continue
+                home = next((x for x in competitors if x.get("homeAway") == "home"), competitors[0])
+                away = next((x for x in competitors if x.get("homeAway") == "away"), competitors[1])
+                status = ev.get("status", {})
+                try:
+                    hs, aw = int(home.get("score") or 0), int(away.get("score") or 0)
+                except (TypeError, ValueError):
+                    hs, aw = 0, 0
+                matches.append({
+                    "home": (home.get("team") or {}).get("displayName") or home.get("displayName", ""),
+                    "away": (away.get("team") or {}).get("displayName") or away.get("displayName", ""),
+                    "state": (status.get("type") or {}).get("state", ""),
+                    "home_goals": hs, "away_goals": aw,
+                    "clock": status.get("displayClock") or (status.get("type") or {}).get("shortDetail", ""),
+                    "sport": "basketball"
+                })
+        except Exception as exc:
+            print(f"ESPN basketball {league} scoreboard unavailable: {exc}")
+
     # 2. Záložní football-data.org (pokud zápas není na ESPN)
     if FOOTBALL_DATA_API_KEY:
         d_from = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -257,9 +318,9 @@ def evaluate_selection(selection, home_goals, away_goals):
         return home_goals >= away_goals
     if "x2" in sel or "neprohra hostů" in sel or "neprohra hostu" in sel:
         return away_goals >= home_goals
-    if "výhra domácích" in sel or "vyhra domacich" in sel or sel in {"1", "home"} or "(1)" in sel:
+    if "výhra domácích" in sel or "vyhra domacich" in sel or sel in {"1", "home"} or "(1)" in sel or "domácí" in sel or "domaci" in sel:
         return home_goals > away_goals
-    if "výhra hostů" in sel or "vyhra hostu" in sel or sel in {"2", "away"} or "(2)" in sel:
+    if "výhra hostů" in sel or "vyhra hostu" in sel or sel in {"2", "away"} or "(2)" in sel or "hostů" in sel or "hostu" in sel:
         return away_goals > home_goals
     if "remíza" in sel or "remiza" in sel or sel in {"x", "draw"}:
         return home_goals == away_goals
