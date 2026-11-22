@@ -759,7 +759,7 @@
     const t = String(title || "").toLowerCase();
     if (k.startsWith("soccer_")) return enabled.includes("soccer");
     if (k.startsWith("tennis_")) {
-      if (!enabled.includes("tennis") || /\\bitf\\b|challenger|futures/.test(k + " " + t)) return false;
+      if (!enabled.includes("tennis") || /\bitf\b|challenger|futures/.test(k + " " + t)) return false;
       return /atp|wta|grand slam|australian open|roland garros|french open|wimbledon|us open/.test(k + " " + t);
     }
     if (k.startsWith("basketball_")) return enabled.includes("basketball") && /nba|euroleague/.test(k + " " + t);
