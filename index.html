@@ -743,9 +743,13 @@
       let response;
       try { response=await fetch(url,{cache:"no-store"}); }
       catch(error) { throw new Error("The Odds API se nepodařilo načíst (síť/CORS)."); }
-      if(response.status===401||response.status===403)throw new Error("The Odds API odmítlo klíč.");
-      if(response.status===429)throw new Error("The Odds API: vyčerpán limit požadavků.");
-      if(!response.ok)throw new Error("The Odds API HTTP "+response.status);
+      if(!response.ok) {
+        let detail="";
+        try { const payload=await response.json(); detail=String(payload.message||payload.error||payload.error_code||"").slice(0,220); } catch(error) { /* tělo chyby nemusí být JSON */ }
+        if(response.status===401||response.status===403) throw new Error("The Odds API HTTP "+response.status+(detail?": "+detail:" – klíč je neplatný, deaktivovaný nebo není spojený s předplatným."));
+        if(response.status===429) throw new Error("The Odds API: vyčerpán limit požadavků."+(detail?" "+detail:""));
+        throw new Error("The Odds API HTTP "+response.status+(detail?": "+detail:""));
+      }
       return response.json();
     }
     const sportsUrl=new URL(api+"/sports/");
