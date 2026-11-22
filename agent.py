@@ -60,120 +60,108 @@ def same_match(home_a, away_a, home_b, away_b):
     return len(shared) >= 2 and len(max(shared, key=len)) >= 3
 
 
-def fetch_odds_candidates(min_odds=1.42, max_odds=1.65, hours=48, exclude_matches=None):
-    """Stáhne fotbalovou nabídku z The Odds API a vrátí tipy (1 nebo 1X) v kurzovém pásmu."""
+def fetch_odds_candidates(min_odds=1.35, max_odds=1.72, hours=5, exclude_matches=None):
     if not ODDS_API_KEY:
         return []
-
     url = "https://api.the-odds-api.com/v4/sports/upcoming/odds"
-    params = {
-        "apiKey": ODDS_API_KEY.strip(),
-        "regions": "eu",
-        "markets": "h2h",
-        "oddsFormat": "decimal"
-    }
+    params = {"apiKey": ODDS_API_KEY.strip(), "regions": "eu", "markets": "h2h", "oddsFormat": "decimal"}
     excluded = exclude_matches or []
-
     try:
-        res = requests.get(url, params=params, timeout=12)
+        res = requests.get(url, params=params, timeout=15)
         if res.status_code != 200:
-            print(f"The Odds API vrátilo status {res.status_code}: {res.text}")
+            print(f"The Odds API returned {res.status_code}: {res.text}")
             return []
-
-        remaining = res.headers.get("x-requests-remaining", "neznámo")
-        print(f"The Odds API OK (zbývající kredity: {remaining}).")
-
-        events = res.json()
-        now_utc = datetime.now(timezone.utc)
-        limit_utc = now_utc + timedelta(hours=hours)
+        print(f"The Odds API OK (remaining credits: {res.headers.get('x-requests-remaining', 'unknown')}).")
+        now = datetime.now(timezone.utc)
+        end = now + timedelta(hours=min(max(int(hours), 1), 5))
         candidates = []
-
-        for ev in events:
-            sport_key = ev.get("sport_key", "")
-            if not sport_key.startswith("soccer_"):
+        for event in res.json():
+            key = str(event.get("sport_key", "")).lower()
+            title = str(event.get("sport_title", key))
+            title_lower = title.lower()
+            if key.startswith("soccer_"):
+                sport = "soccer"
+                band_min = 1.38
+            elif key.startswith("tennis_"):
+                sport = "tennis"
+                band_min = 1.35
+                if re.search(r"\bitf\b|challenger|futures", key + " " + title_lower):
+                    continue
+                if not re.search(r"\batp\b|\bwta\b|grand slam|australian open|roland garros|french open|wimbledon|us open", key + " " + title_lower):
+                    continue
+            elif key.startswith("basketball_"):
+                sport = "basketball"
+                band_min = 1.35
+                if not re.search(r"\bnba\b|euroleague", key + " " + title_lower):
+                    continue
+            else:
                 continue
-
-            commence_str = ev.get("commence_time", "")
             try:
-                commence_dt = datetime.fromisoformat(commence_str.replace("Z", "+00:00"))
-                if commence_dt < now_utc or commence_dt > limit_utc:
+                commence = datetime.fromisoformat(str(event.get("commence_time", "")).replace("Z", "+00:00"))
+                if commence < now + timedelta(minutes=5) or commence > end:
                     continue
             except Exception:
                 continue
-
-            home = ev.get("home_team", "")
-            away = ev.get("away_team", "")
-            league = ev.get("sport_title", "Fotbal")
-
-            if any(same_match(home, away, ex_home, ex_away) for ex_home, ex_away in excluded):
+            home, away = event.get("home_team", ""), event.get("away_team", "")
+            if not home or not away or any(same_match(home, away, x, y) for x, y in excluded):
                 continue
-
-            bookmakers = ev.get("bookmakers", [])
-            if not bookmakers:
-                continue
-
-            home_odds_list = []
-            draw_odds_list = []
-            away_odds_list = []
-
-            for bm in bookmakers:
-                for mkt in bm.get("markets", []):
-                    if mkt.get("key") != "h2h":
+            totals = {}
+            counts = {}
+            for bookmaker in event.get("bookmakers", []):
+                for market in bookmaker.get("markets", []):
+                    if market.get("key") != "h2h":
                         continue
-                    outcomes = {o.get("name"): o.get("price") for o in mkt.get("outcomes", [])}
-                    try:
-                        home_price = float(outcomes[home])
-                        draw_price = float(outcomes["Draw"])
-                        away_price = float(outcomes[away])
-                    except (KeyError, TypeError, ValueError):
-                        continue
-                    home_odds_list.append(home_price)
-                    away_odds_list.append(away_price)
-                    draw_odds_list.append(draw_price)
-
-            if not home_odds_list:
+                    for outcome in market.get("outcomes", []):
+                        try:
+                            price = float(outcome.get("price"))
+                        except (TypeError, ValueError):
+                            continue
+                        if price > 1:
+                            name = outcome.get("name", "")
+                            totals[name] = totals.get(name, 0.0) + price
+                            counts[name] = counts.get(name, 0) + 1
+            averages = {name: total / counts[name] for name, total in totals.items() if counts[name]}
+            implied_raw = {name: 1.0 / price for name, price in averages.items()}
+            margin = sum(implied_raw.values())
+            if margin <= 0:
                 continue
-
-            avg_home = round(sum(home_odds_list) / len(home_odds_list), 2)
-            avg_draw = round(sum(draw_odds_list) / len(draw_odds_list), 2)
-            avg_away = round(sum(away_odds_list) / len(away_odds_list), 2)
-            double_chance_1x = round(1.0 / ((1.0 / avg_home) + (1.0 / avg_draw)), 2)
-
-            base = {
-                "home": home,
-                "away": away,
-                "match": f"{home} vs {away}",
-                "league": league,
-                "utcDate": commence_str[:16].replace("T", " "),
-                "commence_time": commence_str,
-                "sport_key": sport_key,
-                "market_context": f"1: {avg_home} | X: {avg_draw} | 2: {avg_away} | 1X: {double_chance_1x}"
-            }
-
-            if min_odds <= avg_home <= max_odds:
-                candidates.append(dict(
-                    base,
-                    recommended_selection="Výhra domácích (1)",
-                    real_odds=avg_home
-                ))
-            elif min_odds <= double_chance_1x <= max_odds:
-                candidates.append(dict(
-                    base,
-                    recommended_selection="Neprohra domácích (1X)",
-                    real_odds=double_chance_1x
-                ))
-
+            probs = {name: p / margin for name, p in implied_raw.items()}
+            options = []
+            if sport == "soccer":
+                home_odds = averages.get(home, 0)
+                draw_odds = averages.get("Draw", 0)
+                away_odds = averages.get(away, 0)
+                if home_odds > 1:
+                    options.append(("Výhra domácích (1)", home_odds, probs.get(home, 0)))
+                if home_odds > 1 and draw_odds > 1:
+                    odds_1x = 1.0 / ((1.0 / home_odds) + (1.0 / draw_odds))
+                    if 1.38 <= odds_1x <= 1.72:
+                        options.append(("Neprohra domácích (1X)", odds_1x, probs.get(home, 0) + probs.get("Draw", 0)))
+            else:
+                for team in (home, away):
+                    price = averages.get(team, 0)
+                    if price > 1:
+                        options.append(("Výhra domácích" if team == home else "Výhra hostů", price, probs.get(team, 0)))
+            valid = [x for x in options if max(min_odds, band_min) <= x[1] <= min(max_odds, 1.72)]
+            if not valid:
+                continue
+            selection, odds, probability = max(valid, key=lambda x: x[2])
+            candidates.append({
+                "home": home, "away": away, "match": f"{home} vs {away}", "league": title,
+                "sport": sport, "sport_key": key, "commence_time": event.get("commence_time", ""),
+                "recommended_selection": selection, "real_odds": round(odds, 2),
+                "probability": probability, "confidence_reason": f"Tržní odhad pravděpodobnosti {probability:.1%} z průměrných EU kurzů."
+            })
         return candidates
-
     except Exception as e:
-        print(f"Chyba při komunikaci s The Odds API: {e}")
+        print(f"The Odds API request failed: {e}")
         return []
 
-
 def fetch_real_odds_matches():
-    candidates = fetch_odds_candidates(1.42, 1.65)
-    print(f"The Odds API: nalezeno {len(candidates)} zápasů v pásmu 1.42–1.65.")
-    return candidates[:20]
+    candidates = fetch_odds_candidates(1.35, 1.72, hours=5)
+    candidates.sort(key=lambda item: float(item.get("probability", 0)), reverse=True)
+    print(f"The Odds API: nalezeno {len(candidates)} fotbalových, tenisových a basketbalových tipů do 5 hodin.")
+    return candidates[:40]
 
 
 def _leg_real_odds(leg):
@@ -213,10 +201,10 @@ def _make_leg(candidate):
 
 
 def build_new_double_pair():
-    """Sestaví zcela novou dvojici 2 zápasů v pásmu 1.48–1.72 se součinem kolem 2.15."""
+    
     pool = [
-        c for c in fetch_odds_candidates(1.48, 1.72)
-        if 1.48 <= float(c.get("real_odds", 0)) <= 1.72
+        c for c in fetch_odds_candidates(1.35, 1.72, hours=5)
+        if 1.35 <= float(c.get("real_odds", 0)) <= 1.72
     ]
     if len(pool) < 2:
         return None
@@ -228,7 +216,7 @@ def build_new_double_pair():
             if same_match(pool[i]["home"], pool[i]["away"], pool[j]["home"], pool[j]["away"]):
                 continue
             product = float(pool[i]["real_odds"]) * float(pool[j]["real_odds"])
-            diff = abs(product - 2.15)
+            diff = abs(product - 2.20)
             if best_diff is None or diff < best_diff:
                 best_diff = diff
                 best = (pool[i], pool[j])
@@ -246,7 +234,7 @@ def build_new_double_pair():
 
 
 def replace_weak_leg_for_double(current_ticket, leg1_odds, leg2_odds=None):
-    """Vymění slabší ze DVOU zápasů tak, aby součin vyšel kolem 2.15. Nikdy nepřidá třetí zápas."""
+    
     if not current_ticket or not isinstance(current_ticket.get("ticket"), list):
         return current_ticket
 
@@ -324,7 +312,7 @@ def replace_weak_leg_for_double(current_ticket, leg1_odds, leg2_odds=None):
 
 
 def format_double_ticket(ticket_data, title="🎯 *Aktualizovaný Double AKU tiket*"):
-    """Naformátuje tiket tak, aby měl vždy právě 2 zápasy."""
+    
     step, stake, step_desc = get_current_stake_info()
     legs = (ticket_data or {}).get("ticket", [])[:2]
     lines = [title, ""]
@@ -507,59 +495,31 @@ def ask_openrouter(system_prompt, user_prompt):
 
 
 def generate_ticket(matches, has_real_odds):
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    if not matches or len(matches) < 2:
-        print("Nedostatek zápasů pro Double AKU.")
+    if not has_real_odds or not matches:
+        print("No verified Odds API picks are available; refusing to invent prices.")
         return None
-
-    system_prompt = "Jsi konzervativní sportovní analytik zaměřený na fotbal. Odpovídej výhradně ve validním formátu JSON."
-    matches_json = json.dumps(matches, ensure_ascii=False, indent=2)
-
-    if has_real_odds:
-        prompt_lines = [
-            f"Dnešní datum je: {today}.",
-            "Zde je seznam nadcházejících zápasů s REÁLNÝMI EVROPSKÝMI KURZY (pásmo 1.42–1.65):",
-            matches_json,
-            "Vyber PŘÍSNĚ 2 NEJBEZPEČNĚJŠÍ ZÁPASY do Double AKU tiketu:",
-            "- Použij PŘESNĚ hodnotu 'recommended_selection' a PŘESNÉ číslo 'real_odds' uvedené u vybraných zápasů.",
-            "- Celkový kurz ('total_odds') musí být přesný součin obou kurzů s cílem kolem 2.20 (rozmezí 2.05 až 2.45).",
-            "- Preferuj známější evropské soutěže a favority s jasnou domácí převahou.",
-            'Vrať VÝHRADNĚ platný JSON v této struktuře: {"ticket": [{"match": "Domácí vs Hosté", "league": "Název ligy", "selection": "Výhra domácích (1)", "odds": 1.48, "confidence_reason": "stručný důvod"}, {"match": "Domácí vs Hosté", "league": "Název ligy", "selection": "Neprohra domácích (1X)", "odds": 1.49, "confidence_reason": "stručný důvod"}], "total_odds": 2.21, "analysis_summary": "krátké zhodnocení"}'
-        ]
-    else:
-        prompt_lines = [
-            f"Dnešní datum je: {today}.",
-            "Zde je seznam dostupných zápasů (záložní rozpis bez kurzů):",
-            matches_json,
-            "Sestav AKU tiket PŘÍSNĚ ZE 2 NEJBEZPEČNĚJŠÍCH ZÁPASŮ (jednotlivý kurz 1.45–1.55, cílový celkový kurz kolem 2.20).",
-            'Vrať VÝHRADNĚ platný JSON v této struktuře: {"ticket": [{"match": "Domácí vs Hosté", "league": "Název ligy", "selection": "Výhra domácích", "odds": 1.48, "confidence_reason": "stručný důvod"}, {"match": "Domácí vs Hosté", "league": "Název ligy", "selection": "Over 1.5", "odds": 1.48, "confidence_reason": "stručný důvod"}], "total_odds": 2.19, "analysis_summary": "krátké zhodnocení"}'
-        ]
-
-    user_prompt = "\n".join(prompt_lines)
-
-    print("Zkouším primární motor: Google Gemini 2.5 Flash...")
-    ticket_data = ask_gemini(system_prompt, user_prompt)
-
-    if not ticket_data:
-        print("Přepínám na záložní motor: OpenRouter...")
-        ticket_data = ask_openrouter(system_prompt, user_prompt)
-
-    if ticket_data and isinstance(ticket_data.get("ticket"), list):
-        # STRIKTNÍ PRAVIDLO DOUBLE AKU: tiket má vždy právě 2 zápasy, nikdy 3.
-        ticket_data["ticket"] = ticket_data["ticket"][:2]
-        if len(ticket_data["ticket"]) != 2:
-            print("Model nevrátil přesně 2 zápasy, tiket se neukládá.")
-            return None
-        try:
-            o1 = float(ticket_data["ticket"][0]["odds"])
-            o2 = float(ticket_data["ticket"][1]["odds"])
-            ticket_data["total_odds"] = round(o1 * o2, 2)
-        except Exception:
-            pass
-
-    return ticket_data
-
+    pool = [m for m in matches if float(m.get("real_odds", 0) or 0) > 1 and float(m.get("probability", 0) or 0) > 0]
+    pool.sort(key=lambda item: float(item.get("probability", 0)), reverse=True)
+    best = None
+    best_rank = None
+    for index, first in enumerate(pool):
+        for second in pool[index + 1:]:
+            if same_match(first.get("home", ""), first.get("away", ""), second.get("home", ""), second.get("away", "")):
+                continue
+            product = float(first["real_odds"]) * float(second["real_odds"])
+            probability = float(first["probability"]) * float(second["probability"])
+            in_band = 2.05 <= product <= 2.45
+            rank = (1 if in_band else 0, probability, -abs(product - 2.20))
+            if best_rank is None or rank > best_rank:
+                best_rank, best = rank, (first, second)
+    if not best:
+        return None
+    legs = [_make_leg(best[0]), _make_leg(best[1])]
+    return {
+        "ticket": legs,
+        "total_odds": round(legs[0]["real_odds"] * legs[1]["real_odds"], 2),
+        "analysis_summary": "Dvojice dvou různých událostí s nejvyšší kombinovanou tržní pravděpodobností v pásmu cílového kurzu."
+    }
 
 def save_ticket_to_history(ticket_data):
     if not ticket_data or not ticket_data.get("ticket"):
