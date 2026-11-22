@@ -773,19 +773,31 @@
       for (const bookmaker of row.bookmakers || []) {
         const markets = [];
         for (const bet of bookmaker.bets || []) {
-          if (!/^(match winner|1x2|full time result)$/i.test(String(bet.name || "").trim())) continue;
+          const betName = String(bet.name || "").trim();
+          const isWinner = /^(match winner|1x2|full time result)$/i.test(betName);
+          const isTotals = /^(goals? over\/under|over\/under|total goals)$/i.test(betName);
+          if (!isWinner && !isTotals) continue;
           const outcomes = [];
+          let totalLine = "";
           for (const value of bet.values || []) {
             const label = String(value.value || "").trim();
             const odd = Number(String(value.odd || "").replace(",", "."));
             if (!(odd > 1)) continue;
             let name = "";
-            if (/^(home|1)$/i.test(label) || normalizeTeam(label) === normalizeTeam(home)) name = home;
-            else if (/^(away|2)$/i.test(label) || normalizeTeam(label) === normalizeTeam(away)) name = away;
-            else if (/^(draw|x)$/i.test(label)) name = "Draw";
+            if (isWinner) {
+              if (/^(home|1)$/i.test(label) || normalizeTeam(label) === normalizeTeam(home)) name = home;
+              else if (/^(away|2)$/i.test(label) || normalizeTeam(label) === normalizeTeam(away)) name = away;
+              else if (/^(draw|x)$/i.test(label)) name = "Draw";
+            } else {
+              const total = label.match(/^(over|under)\\s+([0-9]+(?:\\.[0-9]+)?)/i);
+              if (total) {
+                totalLine = total[2];
+                name = total[1].toLowerCase() + " " + total[2];
+              }
+            }
             if (name) outcomes.push({ name, price: odd });
           }
-          if (outcomes.length >= 2) markets.push({ key: "h2h", outcomes });
+          if (outcomes.length >= 2) markets.push({ key: isWinner ? "h2h" : "totals_" + totalLine, outcomes });
         }
         if (markets.length) bookmakers.push({ title: bookmaker.name || "", markets });
       }
@@ -874,19 +886,36 @@
   function eventOutcomes(event) {
     const averages = new Map();
     const counts = new Map();
+    const totalAverages = new Map();
+    const totalCounts = new Map();
     for (const bookmaker of event.bookmakers || []) for (const market of bookmaker.markets || []) {
-      if (market.key !== "h2h") continue;
+      const isH2h = market.key === "h2h";
+      const totalMatch = String(market.key || "").match(/^totals_(.+)$/);
+      if (!isH2h && !totalMatch) continue;
       for (const outcome of market.outcomes || []) {
         const price = Number(outcome.price);
         if (!(price > 1)) continue;
-        averages.set(outcome.name, (averages.get(outcome.name) || 0) + price);
-        counts.set(outcome.name, (counts.get(outcome.name) || 0) + 1);
+        if (isH2h) {
+          averages.set(outcome.name, (averages.get(outcome.name) || 0) + price);
+          counts.set(outcome.name, (counts.get(outcome.name) || 0) + 1);
+        } else {
+          totalAverages.set(outcome.name, (totalAverages.get(outcome.name) || 0) + price);
+          totalCounts.set(outcome.name, (totalCounts.get(outcome.name) || 0) + 1);
+        }
       }
     }
     for (const [name,total] of averages) averages.set(name,total/counts.get(name));
+    for (const [name,total] of totalAverages) totalAverages.set(name,total/totalCounts.get(name));
     const implied = [...averages.entries()].map(([name,odds])=>[name,1/odds]);
     const sum = implied.reduce((n,x)=>n+x[1],0);
-    return { averages, probs: new Map(implied.map(([name,p])=>[name,p/sum])) };
+    const probs = new Map(implied.map(([name,p])=>[name,sum?p/sum:0]));
+    const lines = new Set([...totalAverages.keys()].map(name => (name.match(/^(?:over|under) (.+)$/i)||[])[1]).filter(Boolean));
+    const totals = [...lines].map(line => {
+      const over=totalAverages.get("over "+line)||0, under=totalAverages.get("under "+line)||0;
+      const overP=over>1?1/over:0, underP=under>1?1/under:0, totalP=overP+underP;
+      return { line:Number(line), over, under, overProb:totalP?overP/totalP:0, underProb:totalP?underP/totalP:0 };
+    });
+    return { averages, probs, totals };
   }
 
   async function fetchCandidates(minOdds, maxOdds, exclude) {
@@ -927,6 +956,10 @@
         const xTwo=d>1&&a>1?1/((1/d)+(1/a)):0;
         if(oneX>=oddsMin&&oneX<=oddsMax)options.push({selection:"Neprohra domácích (1X)",odds:oneX,prob:ph+pd});
         if(xTwo>=oddsMin&&xTwo<=oddsMax)options.push({selection:"Neprohra hostů (X2)",odds:xTwo,prob:pd+pa});
+        for (const total of (eventOutcomes(event).totals || [])) {
+          if (total.over>=oddsMin&&total.over<=oddsMax) options.push({selection:"Over "+total.line+" gólů",odds:total.over,prob:total.overProb});
+          if (total.under>=oddsMin&&total.under<=oddsMax) options.push({selection:"Under "+total.line+" gólů",odds:total.under,prob:total.underProb});
+        }
       } else {
         for(const team of [home,away]) {
           const odds=averages.get(team)||0,prob=probs.get(team)||0;
@@ -1013,7 +1046,7 @@
       if (state.candidates.length < 2) {
         const d = state.fetchDiagnostics || {};
         let reason = "API neposlalo žádné události s použitelnými kurzy.";
-        if (Number(d.prematchRows) + Number(d.liveRows) > 0 && !d.withOdds) reason = "API vrátilo data, ale žádná událost nemá podporovaný trh Match Winner (1/X/2).";
+        if (Number(d.prematchRows) + Number(d.liveRows) > 0 && !d.withOdds) reason = "API vrátilo data, ale žádná událost nemá podporovaný trh výsledku nebo gólů.";
         else if (d.withOdds > 0 && !d.inWindow) reason = "Události s kurzy existují, ale žádná nezačíná v nastaveném okně a není právě live.";
         else if (d.inWindow > 0 && !d.candidates) reason = "Události v okně mají kurzy, ale žádný favorit neprošel filtrem zadaných kurzů "+(d.requestedMin||"")+"–"+(d.requestedMax||"")+".";
         throw new Error(reason + " Diagnostika API-Football: před zápasem " + (d.prematchRows||0) + ", live " + (d.liveRows||0) + ", s trhem " + (d.withOdds||0) + ", v okně " + (d.inWindow||0) + ", povolený sport " + (d.allowed||0) + ", vhodné tipy " + (d.candidates||0) + ".");
