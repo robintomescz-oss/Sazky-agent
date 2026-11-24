@@ -37,6 +37,40 @@
       }
     ],
     "summary": "Dvojice dvou různých událostí s nejvyšší kombinovanou tržní pravděpodobností v pásmu cílového kurzu.",
-    "base_stake": 1000.0
+    "base_stake": 1000
+  },
+  {
+    "id": 2,
+    "date": "2026-11-24 12:44",
+    "base_stake": 1000,
+    "total_odds": 2.34,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "Arsenal Tivat vs Dečić",
+        "league": "First League",
+        "selection": "Over 0.5 gólů",
+        "odds": 1.65,
+        "real_odds": 1.65,
+        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
+        "commence_time": "2026-11-24T14:00:00+01:00",
+        "is_live": false,
+        "sport": "soccer",
+        "fixture_id": 1558531
+      },
+      {
+        "match": "R. Peniston vs O. Krutykh",
+        "league": "Hersonissos 4",
+        "selection": "Výhra hostů (2)",
+        "odds": 1.42,
+        "real_odds": 1.42,
+        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
+        "commence_time": "2026-11-24T12:25:00.000Z",
+        "is_live": false,
+        "sport": "tennis",
+        "fixture_id": "12181903"
+      }
+    ],
+    "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
   }
 ]
