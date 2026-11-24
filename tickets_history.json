@@ -38,5 +38,39 @@
     ],
     "summary": "Dvojice dvou různých událostí s nejvyšší kombinovanou tržní pravděpodobností v pásmu cílového kurzu.",
     "base_stake": 1000
+  },
+  {
+    "id": 2,
+    "date": "2026-11-24 20:47",
+    "base_stake": 1000,
+    "total_odds": 2.59,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "Holywell vs Penybont",
+        "league": "Premier League",
+        "selection": "Over 0.5 gólů",
+        "odds": 1.54,
+        "real_odds": 1.54,
+        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
+        "commence_time": "2026-11-24T20:45:00+01:00",
+        "is_live": true,
+        "sport": "soccer",
+        "fixture_id": 1575993
+      },
+      {
+        "match": "Chapecoense-sc vs Palmeiras",
+        "league": "Serie A",
+        "selection": "Under 5.5 gólů",
+        "odds": 1.68,
+        "real_odds": 1.68,
+        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
+        "commence_time": "2026-11-24T22:00:00+01:00",
+        "is_live": false,
+        "sport": "soccer",
+        "fixture_id": 1492472
+      }
+    ],
+    "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
   }
 ]
