@@ -68,7 +68,10 @@
         "commence_time": "2026-11-24T22:00:00+01:00",
         "is_live": false,
         "sport": "soccer",
-        "fixture_id": 1492472
+        "fixture_id": 1492472,
+        "live_state": "post",
+        "live_home": 3,
+        "live_away": 0
       }
     ],
     "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
