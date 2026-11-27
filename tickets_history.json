@@ -1,1 +1,36 @@
-[]
+[
+  {
+    "id": 1,
+    "date": "2026-11-27 23:11",
+    "base_stake": 1000,
+    "total_odds": 1.92,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "G. Maristany vs M. L. Carle",
+        "league": "Buenos Aires",
+        "selection": "Výhra domácích (1)",
+        "odds": 1.39,
+        "real_odds": 1.39,
+        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
+        "commence_time": "2026-11-27T19:35:00.000Z",
+        "is_live": true,
+        "sport": "tennis",
+        "fixture_id": "12183081"
+      },
+      {
+        "match": "D. Sweeny vs C. Langmo",
+        "league": "Playford 2",
+        "selection": "Výhra domácích (1)",
+        "odds": 1.38,
+        "real_odds": 1.38,
+        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
+        "commence_time": "2026-11-27T23:30:00.000Z",
+        "is_live": false,
+        "sport": "tennis",
+        "fixture_id": "12183098"
+      }
+    ],
+    "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
+  }
+]
