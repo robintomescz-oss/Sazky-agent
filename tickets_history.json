@@ -56,7 +56,8 @@
         "commence_time": "2026-11-24T20:45:00+01:00",
         "is_live": true,
         "sport": "soccer",
-        "fixture_id": 1575993
+        "fixture_id": 1575993,
+        "result": "won"
       },
       {
         "match": "Chapecoense-sc vs Palmeiras",
