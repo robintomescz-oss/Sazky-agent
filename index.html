@@ -1,749 +1,413 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#0b0f17" />
-  <title>Double AKU Agent (Fotbal • Tenis • Basketbal)</title>
-  <link rel="manifest" href="manifest.json" />
-  <style>
-    :root {
-      --bg: #0b0f17;
-      --card: #131a26;
-      --card-2: #1a2333;
-      --border: #263247;
-      --text: #f1f5f9;
-      --muted: #94a3b8;
-      --accent: #10b981;
-      --accent-hover: #059669;
-      --warn: #f59e0b;
-      --danger: #ef4444;
-      --blue: #3b82f6;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: var(--bg); color: var(--text); padding: 14px; max-width: 680px; margin: 0 auto; padding-bottom: 64px; }
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-    h1 { font-size: 1.18rem; display: flex; align-items: center; gap: 8px; }
-    .icon-btn { background: var(--card-2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 10px; font-size: 0.9rem; cursor: pointer; }
-    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
-    .stat-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px; text-align: center; }
-    .stat-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
-    .stat-val { font-size: 1.08rem; font-weight: 700; margin-top: 4px; }
-    .pos { color: var(--accent); }
-    .neg { color: var(--danger); }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
-    .card-title { font-size: 0.95rem; font-weight: 700; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-    .filter-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
-    .time-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 12px; }
-    .chip-btn {
-      background: var(--card-2); border: 1px solid var(--border); color: var(--muted);
-      padding: 10px 6px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; cursor: pointer; text-align: center;
-    }
-    .chip-btn.active { background: rgba(16, 185, 129, 0.16); border-color: var(--accent); color: var(--text); }
-    .btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 0.98rem; font-weight: 700; cursor: pointer; transition: 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .btn-primary { background: var(--accent); color: #04130d; }
-    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
-    .btn-primary:disabled { background: #1e293b; color: #64748b; cursor: not-allowed; }
-    .btn-warn { background: var(--warn); color: #1a1000; }
-    .btn-blue { background: var(--blue); color: #fff; }
-    .btn-danger { background: var(--danger); color: #fff; }
-    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 10px; font-size: 0.88rem; }
-    .leg-item { background: var(--card-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
-    .leg-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-    .leg-match { font-weight: 700; font-size: 0.95rem; }
-    .leg-meta { font-size: 0.76rem; color: var(--muted); margin-top: 2px; }
-    .leg-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); gap: 8px; }
-    .pick-badge { background: rgba(16, 185, 129, 0.14); color: var(--accent); padding: 4px 8px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; }
-    .odds-input-wrap { display: flex; align-items: center; gap: 6px; }
-    .odds-input-wrap label { font-size: 0.78rem; color: var(--muted); }
-    input[type="number"], input[type="text"], input[type="password"] {
-      background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 7px 9px; font-size: 0.95rem;
-    }
-    input[type="number"] { width: 82px; text-align: right; font-weight: 700; color: var(--warn); }
-    .summary-bar { display: flex; justify-content: space-between; align-items: center; background: var(--bg); padding: 10px 12px; border-radius: 10px; margin: 10px 0; border: 1px solid var(--border); }
-    .manual-controls { display: flex; gap: 6px; margin-top: 8px; }
-    .btn-manual {
-      flex: 1; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border);
-      background: var(--bg); color: var(--muted); font-size: 0.84rem; font-weight: 700; cursor: pointer;
-    }
-    .btn-manual.win.active { background: var(--accent); color: #04130d; border-color: var(--accent); }
-    .btn-manual.lose.active { background: var(--danger); color: #ffffff; border-color: var(--danger); }
-    .ticket-quick-close { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
-    .mini-btn { padding: 5px 9px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.82rem; cursor: pointer; }
-    .status-pill { font-size: 0.75rem; padding: 3px 8px; border-radius: 999px; font-weight: 700; }
-    .st-pending { background: rgba(245, 158, 11, 0.2); color: var(--warn); }
-    .st-won { background: rgba(16, 185, 129, 0.2); color: var(--accent); }
-    .st-lost { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
-    .settings-panel { display: none; }
-    .settings-panel.open { display: block; }
-    .field { margin-bottom: 10px; }
-    .field label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
-    .field input { width: 100%; }
-    .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #1e293b; border: 1px solid var(--accent); color: var(--text); padding: 10px 16px; border-radius: 10px; font-size: 0.88rem; z-index: 999; display: none; max-width: 92%; text-align: center; }
-    .hist-item { border-bottom: 1px solid var(--border); padding: 10px 0; }
-    .hist-item:last-child { border-bottom: none; }
-    .muted { color: var(--muted); font-size: 0.82rem; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Double AKU – Sázky agent</title>
+<meta name="description" content="Jednoduchá PWA pro sestavení a správu Double AKU tiketu – vždy přesně 2 zápasy.">
+<meta name="theme-color" content="#070b10">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Double AKU">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --bg: #070b10;
+    --bg-soft: #0b1220;
+    --card: #101823;
+    --card-2: #162131;
+    --line: #223044;
+    --text: #e8eef7;
+    --muted: #93a4bb;
+    --green: #22c55e;
+    --green-soft: rgba(34, 197, 94, .14);
+    --cyan: #38bdf8;
+    --amber: #f59e0b;
+    --amber-soft: rgba(245, 158, 11, .14);
+    --red: #ef4444;
+    --red-soft: rgba(239, 68, 68, .14);
+    --radius: 18px;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100dvh;
+    background:
+      radial-gradient(1000px 500px at 50% -180px, rgba(34, 197, 94, .16), transparent 70%),
+      radial-gradient(700px 400px at 110% 10%, rgba(56, 189, 248, .08), transparent 70%),
+      var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    padding-bottom: calc(28px + env(safe-area-inset-bottom));
+  }
+  button, input, select { font: inherit; }
+  button { cursor: pointer; }
+  .wrap { width: 100%; max-width: 780px; margin: 0 auto; padding: 0 16px; }
+
+  /* Horní lišta */
+  .topbar {
+    position: sticky; top: 0; z-index: 30;
+    backdrop-filter: blur(14px);
+    background: rgba(7, 11, 16, .82);
+    border-bottom: 1px solid rgba(34, 48, 68, .8);
+    padding-top: env(safe-area-inset-top);
+  }
+  .topbar-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .logo {
+    display: grid; place-items: center;
+    width: 42px; height: 42px; border-radius: 14px;
+    background: linear-gradient(145deg, rgba(34, 197, 94, .22), rgba(56, 189, 248, .12));
+    border: 1px solid rgba(34, 197, 94, .35);
+    font-size: 21px;
+  }
+  .brand strong { display: block; font-size: 17px; letter-spacing: .2px; }
+  .brand small { display: block; color: var(--muted); font-size: 12px; margin-top: -1px; }
+  .top-actions { display: flex; gap: 8px; }
+  .icon-btn {
+    width: 46px; height: 46px; border-radius: 14px;
+    border: 1px solid var(--line); background: var(--card);
+    color: var(--text); font-size: 20px; line-height: 1;
+    display: grid; place-items: center;
+  }
+  .icon-btn:active { transform: scale(.97); }
+
+  main { padding-top: 16px; display: grid; gap: 14px; }
+
+  .card {
+    background: linear-gradient(180deg, rgba(22, 33, 49, .75), rgba(16, 24, 35, .95));
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .card h2 { margin: 0 0 12px; font-size: 16px; letter-spacing: .3px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+
+  /* Progrese */
+  .progress-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .step-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 12px; border-radius: 999px;
+    background: var(--green-soft); border: 1px solid rgba(34, 197, 94, .35);
+    color: #86efac; font-weight: 700; font-size: 14px; white-space: nowrap;
+  }
+  .bankroll { text-align: right; }
+  .bankroll strong { display: block; font-size: 24px; letter-spacing: .2px; }
+  .bankroll span { color: var(--muted); font-size: 12px; }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin: 14px 0 16px; }
+  .step-dot {
+    height: 8px; border-radius: 99px; background: #1d2a3c; border: 1px solid #26364c;
+  }
+  .step-dot.done { background: rgba(34, 197, 94, .55); border-color: rgba(34, 197, 94, .6); }
+  .step-dot.current { background: var(--green); border-color: #4ade80; box-shadow: 0 0 16px rgba(34, 197, 94, .5); }
+  .stake-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: rgba(7, 11, 16, .5); border: 1px solid var(--line); border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .stake-row .stake-label { font-size: 13px; color: var(--muted); }
+  .stake-row strong { font-size: 26px; color: #86efac; letter-spacing: .3px; }
+  .profit { font-size: 13px; margin-top: 10px; display: flex; justify-content: space-between; gap: 10px; color: var(--muted); }
+  .profit b.pos { color: #4ade80; }
+  .profit b.neg { color: #fca5a5; }
+
+  /* Filtry */
+  .sport-filters { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sport-filters label {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: rgba(7, 11, 16, .5); border: 1px solid var(--line);
+    border-radius: 12px; padding: 8px 12px; font-size: 14px; font-weight: 600;
+  }
+  .field select {
+    width: 100%; min-height: 48px; padding: 10px 13px;
+    border-radius: 13px; border: 1.5px solid #2b3d55; background: #0a111b; color: var(--text);
+    font-size: 15px;
+  }
+
+  /* Tlačítka */
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; min-height: 56px; padding: 13px 18px;
+    border-radius: 16px; border: 1px solid transparent;
+    font-weight: 700; font-size: 16.5px; color: #fff;
+    background: var(--card-2);
+    transition: transform .08s ease, filter .15s ease, opacity .15s ease;
+    text-align: center;
+  }
+  .btn:active { transform: scale(.985); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-primary {
+    background: linear-gradient(135deg, #16a34a, #22c55e);
+    box-shadow: 0 10px 26px rgba(34, 197, 94, .22);
+  }
+  .btn-green { background: linear-gradient(135deg, #15803d, #22c55e); }
+  .btn-amber {
+    background: linear-gradient(135deg, #b45309, #f59e0b);
+    color: #1a1206;
+  }
+  .btn-amber.attention { animation: pulse 1.6s infinite; }
+  .btn-ghost { background: var(--card); border-color: var(--line); color: var(--text); }
+  .btn-danger { background: linear-gradient(135deg, #b91c1c, #ef4444); }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, .45); }
+    50% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+  }
+  .hint { color: var(--muted); font-size: 13px; text-align: center; margin: 6px 0 0; }
+
+  /* Tiket */
+  .ticket-card { border-color: rgba(34, 197, 94, .28); }
+  .ticket-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .ticket-head h2 { margin: 0; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--green-soft); border: 1px solid rgba(34, 197, 94, .3);
+    color: #86efac; border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 700;
+  }
+  .leg {
+    background: rgba(7, 11, 16, .55);
+    border: 1px solid var(--line); border-radius: 15px;
+    padding: 13px; margin-bottom: 11px;
+  }
+  .leg-top { display: flex; align-items: center; gap: 8px; }
+  .leg-num { font-size: 12px; font-weight: 800; letter-spacing: .7px; text-transform: uppercase; color: #86efac; }
+  .league {
+    font-size: 11px; color: var(--muted); background: rgba(148, 163, 184, .08);
+    border: 1px solid rgba(148, 163, 184, .16); padding: 3px 8px; border-radius: 999px;
+    max-width: 52%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mini {
+    margin-left: auto; width: 40px; height: 40px; border-radius: 12px;
+    background: var(--card-2); border: 1px solid var(--line); color: var(--text); font-size: 17px;
+  }
+  .match { font-size: 18px; font-weight: 700; margin: 9px 0 8px; line-height: 1.3; }
+  .sel-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chip {
+    background: rgba(56, 189, 248, .1); border: 1px solid rgba(56, 189, 248, .28);
+    color: #7dd3fc; border-radius: 9px; padding: 5px 9px; font-size: 13px; font-weight: 600;
+  }
+  .api-odds { color: var(--muted); font-size: 12px; }
+  .countdown { color: #7dd3fc; font-weight: 700; }
+  .odds-field { display: block; }
+  .odds-field > span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .odds-field input {
+    width: 100%; min-height: 54px; padding: 10px 14px;
+    background: #0a111b; color: var(--text);
+    border: 1.5px solid #2b3d55; border-radius: 13px;
+    font-size: 22px; font-weight: 800; letter-spacing: .5px;
+  }
+  .odds-field input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(34, 197, 94, .16); }
+  .totals { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 12px; }
+  .total-box {
+    background: rgba(7, 11, 16, .55); border: 1px solid var(--line);
+    border-radius: 14px; padding: 11px 13px;
+  }
+  .total-box span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .total-box strong { font-size: 23px; letter-spacing: .3px; }
+  .total-box strong.warn { color: var(--amber); }
+  .warning {
+    display: none; align-items: flex-start; gap: 9px;
+    background: var(--amber-soft); border: 1px solid rgba(245, 158, 11, .35);
+    color: #fcd34d; border-radius: 13px; padding: 11px 12px;
+    font-size: 13px; margin-bottom: 11px;
+  }
+  .warning.show { display: flex; }
+  .ticket-actions { display: grid; gap: 9px; }
+  .ai-note { color: var(--muted); font-size: 13px; font-style: italic; margin: 2px 0 11px; }
+
+  /* Aktivní tiket, manuální ovládání a historie */
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
+    padding: 5px 10px; font-size: 12px; font-weight: 800; letter-spacing: .3px;
+  }
+  .status-pending { background: var(--amber-soft); border: 1px solid rgba(245, 158, 11, .4); color: #fcd34d; }
+  .status-won { background: var(--green-soft); border: 1px solid rgba(34, 197, 94, .4); color: #86efac; }
+  .status-lost { background: var(--red-soft); border: 1px solid rgba(239, 68, 68, .4); color: #fca5a5; }
+  .live-leg {
+    border-top: 1px solid rgba(34, 48, 68, .75); padding: 12px 0;
+  }
+  .live-leg:first-of-type { border-top: 0; }
+  .live-leg-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .live-leg .name { font-weight: 700; font-size: 15px; }
+  .live-leg .pick { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .live-state { text-align: right; font-size: 12.5px; white-space: nowrap; }
+  .live-state .score { font-size: 17px; font-weight: 800; display: block; }
+  .live-state .ok { color: #4ade80; }
+  .live-state .bad { color: #f87171; }
+  .live-state .wait { color: var(--muted); }
+  .manual-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 9px; }
+  .manual-btn {
+    min-height: 42px; border-radius: 11px; border: 1px solid var(--line);
+    background: #0a111b; color: var(--muted); font-size: 13.5px; font-weight: 700;
+  }
+  .manual-btn.win.selected { background: var(--green-soft); border-color: var(--green); color: #86efac; }
+  .manual-btn.lose.selected { background: var(--red-soft); border-color: var(--red); color: #fca5a5; }
+  .active-actions { display: grid; gap: 9px; margin-top: 12px; }
+  .history-item {
+    border: 1px solid var(--line); border-radius: 14px; padding: 12px;
+    background: rgba(7, 11, 16, .45); margin-bottom: 9px;
+  }
+  .history-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .history-top .date { color: var(--muted); font-size: 12.5px; }
+  .history-leg { font-size: 13.5px; padding: 3px 0; color: #d6e1ef; }
+  .history-leg .odds { color: var(--muted); }
+  .empty { color: var(--muted); font-size: 14px; text-align: center; padding: 14px 6px; }
+  .error-box {
+    background: var(--red-soft); border: 1px solid rgba(239, 68, 68, .4);
+    color: #fecaca; border-radius: 13px; padding: 11px 12px; font-size: 13px;
+  }
+  .info-list { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13.5px; }
+  .info-list li { margin: 5px 0; }
+  .info-list b { color: var(--text); }
+
+  /* Nastavení */
+  .modal {
+    position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center;
+    background: rgba(0, 0, 0, .66); backdrop-filter: blur(4px);
+    padding: 0; opacity: 1; transition: opacity .15s ease;
+  }
+  .modal.hidden { display: none; }
+  .sheet {
+    width: 100%; max-width: 620px; max-height: 92dvh; overflow-y: auto;
+    background: var(--bg-soft); border: 1px solid var(--line);
+    border-radius: 22px 22px 0 0; padding: 20px 18px calc(22px + env(safe-area-inset-bottom));
+    box-shadow: 0 -20px 50px rgba(0, 0, 0, .55);
+  }
+  @media (min-width: 640px) {
+    .modal { align-items: center; padding: 20px; }
+    .sheet { border-radius: 22px; }
+  }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .sheet-head h2 { margin: 0; font-size: 19px; }
+  .field { margin-top: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 650; margin-bottom: 6px; }
+  .field input {
+    width: 100%; min-height: 52px; padding: 11px 13px;
+    border-radius: 13px; border: 1.5px solid #2b3d55; background: #0a111b; color: var(--text);
+    font-size: 15px;
+  }
+  .field input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(34, 197, 94, .15); }
+  .field .help { color: var(--muted); font-size: 12px; margin-top: 5px; }
+  .key-state { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 99px; margin-left: 6px; }
+  .key-state.set { background: var(--green-soft); color: #86efac; }
+  .key-state.missing { background: rgba(148, 163, 184, .12); color: var(--muted); }
+  .sheet-actions { display: grid; gap: 9px; margin-top: 20px; }
+  .repo-note {
+    margin-top: 14px; background: rgba(56, 189, 248, .07); border: 1px solid rgba(56, 189, 248, .22);
+    border-radius: 13px; padding: 11px 12px; font-size: 12.5px; color: #bae6fd; line-height: 1.55;
+  }
+  .repo-note code { color: #e0f2fe; }
+
+  /* Toast */
+  #toast {
+    position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 20px); z-index: 80;
+    max-width: min(92vw, 520px); padding: 13px 16px; border-radius: 14px;
+    background: #162131; border: 1px solid #2b3d55; box-shadow: 0 14px 40px rgba(0, 0, 0, .5);
+    color: var(--text); font-size: 14px; text-align: center;
+    opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #toast.ok { border-color: rgba(34, 197, 94, .5); }
+  #toast.err { border-color: rgba(239, 68, 68, .55); }
+
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
 </head>
 <body>
 
-  <header>
-    <h1>🎯 Double AKU Agent</h1>
-    <div style="display:flex; gap:6px;">
-      <button class="icon-btn" onclick="syncFromGitHub()" title="Načíst z GitHubu">↻</button>
-      <button class="icon-btn" onclick="toggleSettings()">⚙️</button>
-    </div>
-  </header>
-
-  <div class="stats-grid">
-    <div class="stat-box">
-      <div class="stat-label">Čistý zisk</div>
-      <div class="stat-val" id="statProfit">0 Kč</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label">Krok progrese</div>
-      <div class="stat-val" id="statStep">1 / 4</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label">Další vklad</div>
-      <div class="stat-val pos" id="statStake">1 000 Kč</div>
-    </div>
-  </div>
-
-  <!-- NASTAVENÍ -->
-  <div class="card settings-panel" id="settingsPanel">
-    <div class="card-title">⚙️ Nastavení API, vkladu a GitHubu</div>
-    <div class="field">
-      <label>Základní vklad pro Krok 1 (Kč – např. 1000 nebo 500)</label>
-      <input type="number" id="cfgBaseStake" value="1000" step="100" style="width:100%; text-align:left;" />
-    </div>
-    <div class="field">
-      <label>The Odds API Key (povinné)</label>
-      <input type="password" id="cfgOddsKey" placeholder="Vlož ODDS_API_KEY" />
-    </div>
-    <div class="field">
-      <label>GitHub Token (Fine-grained PAT – Contents: Read and write)</label>
-      <input type="password" id="cfgGhToken" placeholder="github_pat_... nebo ghp_..." />
-    </div>
-    <div class="field">
-      <label>GitHub Repozitář (vlastník/název)</label>
-      <input type="text" id="cfgGhRepo" placeholder="robintomescz-oss/Sazky-agent" />
-    </div>
-    <button class="btn btn-primary" onclick="saveSettings()">💾 Uložit nastavení</button>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
-      <button class="btn btn-outline" onclick="exportBackup()">📤 Export JSON</button>
-      <button class="btn btn-outline" onclick="resetAllHistory()" style="color:var(--danger); border-color:var(--danger);">🗑️ Reset historie</button>
-    </div>
-  </div>
-
-  <!-- GENERÁTOR DOUBLE AKU -->
-  <div class="card">
-    <div class="card-title">
-      <span>⚡ Výběr sportů a okna</span>
-      <span class="muted">Vždy přesně 2 zápasy (~2.20)</span>
-    </div>
-
-    <div class="filter-row">
-      <button class="chip-btn active" id="fltSoccer" onclick="toggleSport('soccer')">⚽ Fotbal</button>
-      <button class="chip-btn active" id="fltTennis" onclick="toggleSport('tennis')">🎾 Tenis</button>
-      <button class="chip-btn active" id="fltBasket" onclick="toggleSport('basketball')">🏀 Basket</button>
-    </div>
-
-    <div class="time-row">
-      <button class="chip-btn" id="win2h" onclick="setWindowHours(2)">⏱️ Do 2 hodin</button>
-      <button class="chip-btn active" id="win24h" onclick="setWindowHours(24)">📅 Do 24 hodin</button>
-    </div>
-
-    <button class="btn btn-primary" id="btnGenerate" onclick="generateDoubleTicket()">
-      🎯 Doporučit Double AKU (2 zápasy)
-    </button>
-    <p class="muted" id="lockHint" style="margin-top:8px; display:none; color:var(--warn);">
-      ⚠️ Máš rozehraný aktivní tiket. Nejprve ho vyhodnoť nebo zruš, pak půjde generovat další.
-    </p>
-
-    <!-- NÁVRH PŘED POTVRZENÍM -->
-    <div id="draftSection" style="display:none; margin-top:14px;">
-      <div class="muted" style="margin-bottom:8px;">
-        ✏️ Naklikej na Tipsportu a uprav reálné kurzy u jednotlivých zápasů:
-      </div>
-      <div id="draftLegs"></div>
-
-      <button class="btn btn-warn" id="btnReplaceWeak" onclick="replaceWeakestLeg()" style="display:none; margin-bottom:8px;">
-        🔄 Kurz je pod 1.80 – Vyměnit slabší zápas (zachovat 2)
-      </button>
-
-      <div class="summary-bar">
-        <div>
-          <div class="muted">Celkový kurz</div>
-          <strong id="draftTotalOdds" style="font-size:1.15rem; color:var(--warn);">1.00</strong>
-        </div>
-        <div style="text-align:right;">
-          <div class="muted">Vklad / Možná výhra</div>
-          <strong id="draftPayout" style="font-size:1.05rem; color:var(--accent);">1 000 Kč → 0 Kč</strong>
-        </div>
-      </div>
-
-      <div style="display:grid; grid-template-columns:1fr 2fr; gap:8px;">
-        <button class="btn btn-outline" onclick="discardDraft()">✖ Zrušit</button>
-        <button class="btn btn-primary" onclick="confirmTicket()">✅ Potvrdit a uložit tiket</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- AKTIVNÍ ROZEHRANÝ TIKET -->
-  <div class="card" id="activeCard" style="display:none;">
-    <div class="card-title">
-      <span id="activeTitle">⏳ Aktivní tiket</span>
-      <span class="status-pill st-pending">PENDING</span>
-    </div>
-
-    <div id="activeLegs"></div>
-
-    <!-- RYCHLÉ MANUÁLNÍ UZAVŘENÍ CELÉHO TIKETU -->
-    <div class="ticket-quick-close">
-      <button type="button" class="btn-manual win active" style="padding:11px;" onclick="closeActiveTicketManually('won')">
-        🏆 Celý tiket VYHRÁL
-      </button>
-      <button type="button" class="btn-manual lose active" style="padding:11px;" onclick="closeActiveTicketManually('lost')">
-        ❌ Celý tiket PROHRÁL
-      </button>
-    </div>
-
-    <div class="summary-bar">
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">🎯</span>
       <div>
-        <span class="muted">Vsazený kurz:</span> <strong id="activeOdds">2.20</strong>
-      </div>
-      <div>
-        <span class="muted">Vklad:</span> <strong id="activeStake">1 000 Kč</strong>
+        <strong>Double AKU</strong>
+        <small>vždy přesně 2 zápasy</small>
       </div>
     </div>
-
-    <div style="display:grid; grid-template-columns:1fr; gap:8px;">
-      <button class="btn btn-blue" id="btnCheckResults" onclick="autoCheckResults()">🔄 Obnovit live skóre (API)</button>
-      <button class="btn btn-primary" id="btnFinalizeActive" onclick="finalizeActiveTicket()">🏁 Uzavřít vyhodnocení</button>
-      <button class="btn btn-danger" onclick="deleteActiveTicket()">🗑️ Zrušit a odstranit tiket</button>
+    <div class="top-actions">
+      <button class="icon-btn" data-action="reload-history" title="Načíst historii z GitHubu" aria-label="Obnovit historii">⟳</button>
+      <button class="icon-btn" data-action="open-settings" title="Nastavení" aria-label="Otevřít nastavení">⚙️</button>
     </div>
   </div>
+</header>
 
-  <!-- HISTORIE -->
-  <div class="card">
-    <div class="card-title">
-      <span>📜 Uzavřené tikety</span>
-      <span class="muted" id="histCount">0</span>
+<main class="wrap">
+  <section class="card" id="progressCard" aria-live="polite"></section>
+
+  <section class="card" id="filtersCard">
+    <h2>🏟️ Sporty a časové okno</h2>
+    <div class="sport-filters">
+      <label><input type="checkbox" data-sport-filter="soccer" checked> ⚽ Fotbal</label>
+      <label><input type="checkbox" data-sport-filter="basketball" checked> 🏀 Basketbal</label>
+      <label><input type="checkbox" data-sport-filter="tennis" checked> 🎾 Tenis</label>
     </div>
-    <div id="historyList" class="muted">Zatím žádné uzavřené tikety.</div>
-  </div>
+    <label class="field"><span>Časové okno (max. 5 hodin)</span>
+      <select id="timeWindow"><option value="2">⏱️ Do 2 hodin</option><option value="5">📅 Do 5 hodin</option></select>
+    </label>
+  </section>
+  <section>
+    <button class="btn btn-primary" data-action="recommend" id="recommendBtn">🎯 Doporučit Double AKU (2 zápasy)</button>
+    <p class="hint">API-Sports pro fotbal a basketbal, API Tennis pro tenis. Hledá události do 5 hodin a řadí tipy podle odhadované pravděpodobnosti.</p>
+  </section>
 
-  <div class="toast" id="toast"></div>
+  <section id="ticketSection"></section>
+  <section id="activeSection"></section>
+  <section id="historySection"></section>
 
-<script>
-  const TARGET_ODDS = 2.20;
-  const STORAGE_HISTORY_KEY = "sazky_agent_history_v2";
-  const STORAGE_CFG_KEY = "sazky_agent_cfg_v2";
+  <section class="card">
+    <h2>📘 Jak to funguje</h2>
+    <ul class="info-list">
+      <li><b>Double AKU = přesně 2 zápasy.</b> Třetí zápas se nikdy nepřidává.</li>
+      <li><b>Reálné kurzy:</b> u obou tipů přepiš kurz z Tipsportu – součin se hned přepočítá.</li>
+      <li><b>Pod 1.80:</b> tlačítko výměny vymění slabší zápas tak, aby součin vyšel kolem 2.20 (stále jen 2 zápasy).</li>
+      <li><b>Uložení:</b> tiket se zapíše do <code>tickets_history.json</code> na GitHubu jako <code>pending</code>. Workflow <code>live_tracker.py</code> ho do 5 minut začne sledovat a posílat hlášení na Telegram.</li>
+      <li><b>Progrese:</b> K1 = 1 000 Kč, K2 = 50 % čistého zisku z K1, K3 = celá výhra z K2, K4 = 50 % z K2. Prohra vrací na Krok 1.</li>
+    </ul>
+  </section>
+</main>
 
-  let historyData = [];
-  let draftLegs = [];
-  let cachedPool = [];
-  let ghFileSha = null;
-
-  let activeSports = { soccer: true, tennis: true, basketball: true };
-  let windowHours = 24;
-
-  function showToast(msg) {
-    const el = document.getElementById("toast");
-    el.textContent = msg;
-    el.style.display = "block";
-    clearTimeout(window._toastTimer);
-    window._toastTimer = setTimeout(() => { el.style.display = "none"; }, 3800);
-  }
-
-  function getConfig() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_CFG_KEY)) || {};
-    } catch { return {}; }
-  }
-
-  function getBaseStake() {
-    const val = parseInt(getConfig().baseStake, 10);
-    return (val && val >= 50) ? val : 1000;
-  }
-
-  function saveSettings() {
-    const cfg = {
-      baseStake: parseInt(document.getElementById("cfgBaseStake").value, 10) || 1000,
-      oddsKey: document.getElementById("cfgOddsKey").value.trim(),
-      ghToken: document.getElementById("cfgGhToken").value.trim(),
-      ghRepo: document.getElementById("cfgGhRepo").value.trim() || "robintomescz-oss/Sazky-agent"
-    };
-    localStorage.setItem(STORAGE_CFG_KEY, JSON.stringify(cfg));
-    document.getElementById("settingsPanel").classList.remove("open");
-    renderAll();
-    showToast("✅ Nastavení uloženo");
-    if (cfg.ghToken) syncFromGitHub();
-  }
-
-  function toggleSettings() {
-    const panel = document.getElementById("settingsPanel");
-    panel.classList.toggle("open");
-    const cfg = getConfig();
-    document.getElementById("cfgBaseStake").value = cfg.baseStake || 1000;
-    document.getElementById("cfgOddsKey").value = cfg.oddsKey || "";
-    document.getElementById("cfgGhToken").value = cfg.ghToken || "";
-    document.getElementById("cfgGhRepo").value = cfg.ghRepo || "robintomescz-oss/Sazky-agent";
-  }
-
-  function toggleSport(sport) {
-    const enabledCount = Object.values(activeSports).filter(Boolean).length;
-    if (activeSports[sport] && enabledCount === 1) {
-      showToast("⚠️ Musí zůstat zapnutý alespoň jeden sport.");
-      return;
-    }
-    activeSports[sport] = !activeSports[sport];
-    document.getElementById("fltSoccer").classList.toggle("active", activeSports.soccer);
-    document.getElementById("fltTennis").classList.toggle("active", activeSports.tennis);
-    document.getElementById("fltBasket").classList.toggle("active", activeSports.basketball);
-  }
-
-  function setWindowHours(hrs) {
-    windowHours = hrs;
-    document.getElementById("win2h").classList.toggle("active", hrs === 2);
-    document.getElementById("win24h").classList.toggle("active", hrs === 24);
-  }
-
-  function loadLocalHistory() {
-    try {
-      historyData = JSON.parse(localStorage.getItem(STORAGE_HISTORY_KEY)) || [];
-    } catch { historyData = []; }
-  }
-
-  async function saveHistory() {
-    localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(historyData));
-    renderAll();
-    const cfg = getConfig();
-    if (cfg.ghToken && cfg.ghRepo) {
-      await pushToGitHub(cfg);
-    }
-  }
-
-  async function syncFromGitHub() {
-    const cfg = getConfig();
-    if (!cfg.ghToken || !cfg.ghRepo) {
-      renderAll();
-      return;
-    }
-    try {
-      const url = `https://api.github.com/repos/${cfg.ghRepo}/contents/tickets_history.json`;
-      const res = await fetch(url, {
-        headers: { "Authorization": `Bearer ${cfg.ghToken}`, "Accept": "application/vnd.github+json" }
-      });
-      if (res.status === 200) {
-        const data = await res.json();
-        ghFileSha = data.sha;
-        const decoded = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ""))));
-        const parsed = JSON.parse(decoded);
-        if (Array.isArray(parsed)) {
-          historyData = parsed;
-          localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(historyData));
-          renderAll();
-          showToast("☁️ Načteno z GitHubu");
-        }
-      } else if (res.status === 404) {
-        showToast("⚠️ Soubor tickets_history.json nenalezen (zkontroluj repozitář/token)");
-      }
-    } catch {
-      showToast("⚠️ Chyba připojení ke GitHubu");
-    }
-  }
-
-  async function pushToGitHub(cfg) {
-    try {
-      const url = `https://api.github.com/repos/${cfg.ghRepo}/contents/tickets_history.json`;
-      if (!ghFileSha) {
-        const check = await fetch(url, {
-          headers: { "Authorization": `Bearer ${cfg.ghToken}`, "Accept": "application/vnd.github+json" }
-        });
-        if (check.status === 200) {
-          ghFileSha = (await check.json()).sha;
-        }
-      }
-      const contentB64 = btoa(unescape(encodeURIComponent(JSON.stringify(historyData, null, 2))));
-      const body = { message: "Update tickets_history.json from PWA", content: contentB64 };
-      if (ghFileSha) body.sha = ghFileSha;
-
-      const putRes = await fetch(url, {
-        method: "PUT",
-        headers: {
-          "Authorization": `Bearer ${cfg.ghToken}`,
-          "Accept": "application/vnd.github+json",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
-      });
-      if (putRes.ok) {
-        ghFileSha = (await putRes.json()).content.sha;
-      } else {
-        showToast(`⚠️ GitHub zápis selhal (${putRes.status})`);
-      }
-    } catch {
-      showToast("⚠️ Chyba zápisu na GitHub");
-    }
-  }
-
-  function calculateProgression() {
-    const base = getBaseStake();
-    const evaluated = historyData.filter(t => t.status === "won" || t.status === "lost");
-    let step = 1;
-    let nextStake = base;
-    let k2Payout = 0;
-    let bankProfit = 0;
-
-    for (const t of evaluated) {
-      const won = t.status === "won";
-      const odds = parseFloat(t.total_odds) || 2.0;
-      const stakeUsed = parseFloat(t.stake) || nextStake;
-
-      if (step === 1) {
-        if (won) {
-          const netProfit = stakeUsed * (odds - 1);
-          const locked = Math.round(netProfit / 2);
-          bankProfit += locked;
-          nextStake = Math.max(50, Math.round(netProfit - locked));
-          step = 2;
-        } else {
-          bankProfit -= stakeUsed;
-          nextStake = base;
-          step = 1;
-        }
-      } else if (step === 2) {
-        if (won) {
-          k2Payout = Math.round(stakeUsed * odds);
-          nextStake = k2Payout;
-          step = 3;
-        } else {
-          nextStake = base;
-          step = 1;
-        }
-      } else if (step === 3) {
-        if (won) {
-          const k3Payout = Math.round(stakeUsed * odds);
-          const locked3 = Math.round(k3Payout / 2);
-          bankProfit += locked3;
-          nextStake = Math.max(50, Math.round(k3Payout - locked3));
-          step = 4;
-        } else {
-          nextStake = base;
-          step = 1;
-        }
-      } else if (step === 4) {
-        if (won) {
-          bankProfit += Math.round(stakeUsed * odds);
-        }
-        nextStake = base;
-        step = 1;
-      }
-    }
-    return { step, nextStake: Math.round(nextStake), bankProfit: Math.round(bankProfit) };
-  }
-
-  function parseCandidateFromEvent(ev) {
-    const sk = ev.sport_key || "";
-    const home = ev.home_team;
-    const away = ev.away_team;
-    const hList = [], dList = [], aList = [];
-
-    for (const bm of (ev.bookmakers || [])) {
-      const h2h = (bm.markets || []).find(m => m.key === "h2h");
-      if/code> · Soubor: <code>tickets_history.json</code></div>
-
-    <div class="sheet-actions">
-      <button class="btn btn-green" data-action="save-settings">💾 Uložit nastavení</button>
-      <button class="btn btn-ghost" data-action="close-settings">Zavřít</button>
+<!-- Nastavení -->
+<div class="modal hidden" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="settingsTitle">⚙️ Nastavení</h2>
+      <button class="icon-btn" data-action="close-settings" aria-label="Zavřít nastavení">✕</button>
     </div>
-  </div>
-</div>
+    <p class="muted small">Klíče se ukládají pouze do tohoto zařízení (<code>localStorage</code>) a nikam je neposíláme kromě volání příslušných API.</p>
 
-<div id="toast" role="status" aria-live="polite"></div>
+    <div class="field">
+      <label for="oddsKey">API_FOOTBALL_KEY <span class="key-state" id="oddsKeyState"></span></label>
+      <input id="oddsKey" type="password" autocomplete="off" spellcheck="false" placeholder="klíč z api-football.com">
+      <div class="help">API-Sports – fotbal a basketbal. Pro basketbal musí být váš API-Sports účet aktivní také pro produkt API-Basketball.</div>
+    </div>
 
-<script>
-(function () {
-  "use strict";
+    <div class="field">
+      <label for="tennisKey">API_TENNIS_KEY <span class="key-state" id="tennisKeyState"></span></label>
+      <input id="tennisKey" type="password" autocomplete="off" spellcheck="false" placeholder="klíč z api-tennis.com">
+      <div class="help">Samostatný klíč a plán pro tenisové zápasy a kurzy.</div>
+    </div>
 
-  const REPO_DEFAULT = "robintomescz-oss/Sazky-agent";
-  let REPO = localStorage.getItem("GITHUB_REPO") || REPO_DEFAULT;
-  const BRANCH = "main";
-  const HISTORY_PATH = "tickets_history.json";
-  let BASE_STAKE = Math.max(1, Number(localStorage.getItem("BASE_STAKE")) || 1000);
-  const LS = { odds: "API_FOOTBALL_KEY", tennis: "API_TENNIS_KEY", gemini: "GEMINI_API_KEY", token: "GITHUB_TOKEN" };
+    <div class="field">
+      <label for="geminiKey">GEMINI_API_KEY <span class="key-state" id="geminiKeyState"></span></label>
+      <input id="geminiKey" type="password" autocomplete="off" spellcheck="false" placeholder="volitelné – AI komentář k tiketu">
+      <div class="help">Volitelné. Bez klíče aplikace funguje úplně stejně, jen bez AI věty.</div>
+    </div>
 
-  const state = {
-    history: [],
-    sha: null,
-    historyLoaded: false,
-    ticket: null,
-    candidates: [],
-    selectedCandidates: [],
-    aiComment: "",
-    live: null,
-    liveTicketId: null,
-    busy: false,
-    lastSource: "",
-    fetchDiagnostics: null,
-    providerWarnings: []
-  };
-
-  const oddsCache = new Map();
-  try {
-    const storedFilters = JSON.parse(localStorage.getItem("SPORT_FILTERS") || "null");
-    const chosen = localStorage.getItem("SPORT_FILTERS_V2") ? storedFilters : ["soccer", "basketball", "tennis"];
-    document.querySelectorAll("[data-sport-filter]").forEach(el => { el.checked = chosen.includes(el.dataset.sportFilter); });
-    localStorage.setItem("SPORT_FILTERS_V2", "1");
-    $("#timeWindow").value = Math.min(5, Number(localStorage.getItem("TIME_WINDOW")) || 2);
-  } catch (e) { /* použij výchozí volby */ }
-
-  /* ---------- Pomocné funkce ---------- */
-
-  const $ = (sel, root) => (root || document).querySelector(sel);
-
-  function round2(value) {
-    return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
-  }
-
-  function fmtKc(value) {
-    const n = Number(value) || 0;
-    return new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 0 }).format(Math.round(n)) + " Kč";
-  }
-
-  function fmtOdds(value) {
-    const n = Number(value);
-    return Number.isFinite(n) ? n.toFixed(2) : "";
-  }
-
-  function countdownText(start, isLive) {
-    if (isLive) return "Právě probíhá";
-    const time = Date.parse(start || "");
-    if (!Number.isFinite(time)) return "Čas začátku není dostupný";
-    const remaining = time - Date.now();
-    if (remaining <= 0) return "Začátek už proběhl";
-    if (remaining < 60000) return "Začíná za méně než minutu";
-    const minutes = Math.ceil(remaining / 60000);
-    if (minutes < 60) return "Začíná za " + minutes + " min";
-    const hours = Math.floor(minutes / 60);
-    const rest = minutes % 60;
-    return "Začíná za " + hours + " h" + (rest ? " " + rest + " min" : "");
-  }
-
-  function updateCountdowns() {
-    document.querySelectorAll("[data-countdown]").forEach(el => {
-      el.textContent = countdownText(el.dataset.start, el.dataset.live === "true");
-    });
-  }
-
-  function esc(value) {
-    return String(value == null ? "" : value)
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  }
-
-  function nowStamp() {
-    const d = new Date();
-    const pad = (n) => String(n).padStart(2, "0");
-    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
-      " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
-  }
-
-  function lsGet(key) {
-    try { return localStorage.getItem(key) || ""; } catch (e) { return ""; }
-  }
-  function lsSet(key, value) {
-    try {
-      if (value) localStorage.setItem(key, value);
-      else localStorage.removeItem(key);
-    } catch (e) { /* privátní režim */ }
-  }
-
-  let toastTimer = null;
-  function toast(message, type) {
-    const el = $("#toast");
-    el.textContent = message;
-    el.className = "show " + (type || "");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.className = ""; }, String(message).length > 110 ? 10000 : 3600);
-  }
-
-  function setBusy(button, busy, labelBusy, labelIdle) {
-    if (!button) return;
-    button.disabled = busy;
-    button.innerHTML = busy
-      ? '<span class="spinner" aria-hidden="true"></span> ' + esc(labelBusy)
-      : esc(labelIdle);
-  }
-
-  /* ---------- Výpočet progrese a bankrollu ---------- */
-
-  function calculateProgression(history) {
-    const rows = history || [];
-    const evaluated = rows.filter(t => t && (t.status === "won" || t.status === "lost"));
-    const savedBase = [...rows].reverse().find(t => Number(t && t.base_stake) > 0);
-    const baseStake = savedBase ? Number(savedBase.base_stake) : BASE_STAKE;
-    let step = 1;
-    let stake = baseStake;
-    let k2Payout = 0;
-    let bank = baseStake;
-
-    for (const ticket of evaluated) {
-      const won = ticket.status === "won";
-      const odds = Number(ticket.total_odds) > 1 ? Number(ticket.total_odds) : 2.0;
-      const currentStake = stake;
-
-      if (won) bank += currentStake * (odds - 1);
-      else bank -= currentStake;
-
-      if (step === 1) {
-        if (won) {
-          const net = baseStake * (odds - 1);
-          stake = round2(net / 2);
-          step = 2;
-        } else {
-          stake = baseStake;
-          step = 1;
-        }
-      } else if (step === 2) {
-        if (won) {
-          k2Payout = round2(currentStake * odds);
-          stake = k2Payout;
-          step = 3;
-        } else {
-          stake = baseStake;
-          step = 1;
-        }
-      } else if (step === 3) {
-        if (won) {
-          stake = round2(k2Payout / 2);
-          step = 4;
-        } else {
-          stake = baseStake;
-          step = 1;
-        }
-      } else {
-        stake = baseStake;
-        step = 1;
-      }
-    }
-
-    return {
-      step,
-      stake: Math.max(0, Math.round(stake)),
-      bank: Math.round(bank),
-      profit: Math.round(bank - baseStake)
-    };
-  }
-
-  const STEP_LABEL = {
-    1: "Základní vklad",
-    2: "50 % čistého zisku z K1 (druhá polovina zůstává jako pojistka)",
-    3: "Celá výhra z K2",
-    4: "50 % z K2 jako jistící sázka"
-  };
-
-  function latestPending() {
-    const pending = state.history.filter(t => t && t.status === "pending");
-    if (!pending.length) return null;
-    return pending.slice().sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0)).pop();
-  }
-
-  /* ---------- GitHub REST API ---------- */
-
-  function ghHeaders(extra) {
-    const headers = Object.assign({
-      "Accept": "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28"
-    }, extra || {});
-    const token = lsGet(LS.token).trim();
-    if (token) headers["Authorization"] = "Bearer " + token;
-    return headers;
-  }
-
-  function contentsUrl() {
-    return "https://api.github.com/repos/" + REPO + "/contents/" + HISTORY_PATH + "?ref=" + encodeURIComponent(BRANCH);
-  }
-
-  function b64EncodeUnicode(text) {
-    const bytes = new TextEncoder().encode(text);
-    let binary = "";
-    bytes.forEach(b => { binary += String.fromCharCode(b); });
-    return btoa(binary);
-  }
-
-  function b64DecodeUnicode(base64) {
-    const clean = String(base64 || "").replace(/\s/g, "");
-    const binary = atob(clean);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new TextDecoder().decode(bytes);
-  }
-
-  function parseHistory(raw) {
-    let parsed;
-    try { parsed = JSON.parse(raw); } catch (e) { throw new Error("soubor tickets_history.json není platné JSON"); }
-    if (!Array.isArray(parsed)) throw new Error("tickets_history.json neobsahuje pole tiketů");
-    return parsed;
-  }
-
-  async function fetchHistoryFromApi() {
-    const res = await fetch(contentsUrl(), { headers: ghHeaders(), cache: "no-store" });
-    if (res.status === 404) return { history: [], sha: null };
-    if (!res.ok) throw new Error("GitHub API " + res.status + " – zkontroluj GITHUB_TOKEN");
-    const data = await res.json();
-    return { history: parseHistory(b64DecodeUnicode(data.content)), sha: data.sha || null };
-  }
-
-  async function fetchHistoryPublic() {
-    const res = await fetch(
-      "https://raw.githubusercontent.com/" + REPO + "/" + BRANCH + "/" + HISTORY_PATH + "?t=" + Date.now(),
-      { cache: "no-store" }
-    );
-    if (!res.ok) throw new Error("veřejná historie není dostupná (HTTP " + res.status + ")");
-    return parseHistory(await res.text());
-  }
-
-  async function loadHistory(options) {
-    const opts = options || {};
-    const token = lsGet(LS.token).trim();
-    if (!opts.silent) $("#historySection").innerHTML = '<section class="card"><div class="empty">Načítám historii…</div></section>';
-
-    let tokenError = null;
-
-    try {
-      if (token) {
-        try {
-          const result = await fetchHistoryFromApi();
-          state.history = result.history;
-          state.sha = result.sha;
-          state.lastSource = "GitHub API";
-        } catch (apiError) {
-          tokenError = apiError;
-          state.history = await fetchHistoryPublic();
-          state.sha = null;
-          state.lastSource = "veřejná historie (jen čtení)";
-        }
-      } else {
-        state.history = await fetchHistoryPublic();
-        state.sha = null;
-        state.lastSource = "veřejná historie (jen čtení)";
-      }
-
-      state.historyLoaded = true;
-      renderAll();
-      if (!opts.silent) toast("Historie načtena (" + state.history.length + " tiketů).", "ok");
-      if (tokenError && !opts.silent) toast("GitHub token selhal, čtu veřejnou historii (jen čtení).", "err");
-    } catch (error) {
-      state.historyLoaded = false;
-      renderProgress();
-      renderActive();
-      $("#historySection").innerHTML =
-        '<section class="card"><h2>📜 Uzavřené tikety</h2><button class="mini" data-action="export-json" title="Export JSON zálohy">⬇️</button><div class="error-box">Historii se nepodařilo načíst: ' +
-        esc(error.message) + '</div><p class="hint" style="margin-top:10px">' +
-        (token ? "Zkontroluj GITHUB_TOKEN v nastavení ⚙️." : "Veřejná historie není dostupná. Zkus obnovit ⟳.") +
+    <div class="field">
+      <label for="githubToken">GITHUB_TOKEN <span class="key-state" id="tokenState"></span></label>
+      <input id="githubToken" type="password" autocomplete="off" spellcheck="false" placeholder="Personal Access Token (Contents: Read and write)">
+      <div class="help">Fine-grained token s právit ⟳.") +
         "</p></section>";
       if (!opts.silent) toast("Chyba při načítání historie: " + error.message, "err");
     }
