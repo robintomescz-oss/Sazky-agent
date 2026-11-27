@@ -1,45 +1,5 @@
 [
   {
-    "id": 1,
-    "date": "2026-11-22 17:01",
-    "total_odds": 2.56,
-    "status": "won",
-    "ticket": [
-      {
-        "match": "Anderlecht vs Leuven",
-        "league": "Belgium First Div",
-        "selection": "Výhra domácích (1)",
-        "odds": 1.5,
-        "real_odds": 1.5,
-        "confidence_reason": "Tržní odhad pravděpodobnosti 61.3% z průměrných EU kurzů.",
-        "probability": 0.6132982175829992,
-        "sport": "soccer",
-        "sport_key": "soccer_belgium_first_div",
-        "commence_time": "2026-11-22T17:30:00Z",
-        "live_state": "post",
-        "live_home": 1,
-        "live_away": 0
-      },
-      {
-        "match": "Celta Fortuna vs Real Valladolid CF",
-        "league": "La Liga 2 - Spain",
-        "selection": "Neprohra domácích (1X)",
-        "odds": 1.71,
-        "real_odds": 1.71,
-        "confidence_reason": "Tržní odhad pravděpodobnosti 53.9% z průměrných EU kurzů.",
-        "probability": 0.5394599352454572,
-        "sport": "soccer",
-        "sport_key": "soccer_spain_segunda_division",
-        "commence_time": "2026-11-22T17:30:00Z",
-        "live_state": "post",
-        "live_home": 1,
-        "live_away": 1
-      }
-    ],
-    "summary": "Dvojice dvou různých událostí s nejvyšší kombinovanou tržní pravděpodobností v pásmu cílového kurzu.",
-    "base_stake": 1000
-  },
-  {
     "id": 2,
     "date": "2026-11-24 20:47",
     "base_stake": 1000,
