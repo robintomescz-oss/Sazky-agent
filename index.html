@@ -47,7 +47,7 @@
     line-height: 1.5;
     padding-bottom: calc(28px + env(safe-area-inset-bottom));
   }
-  button, input { font: inherit; }
+  button, input, select { font: inherit; }
   button { cursor: pointer; }
   .wrap { width: 100%; max-width: 780px; margin: 0 auto; padding: 0 16px; }
 
@@ -120,18 +120,31 @@
   .profit b.pos { color: #4ade80; }
   .profit b.neg { color: #fca5a5; }
 
+  /* Filtry */
+  .sport-filters { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sport-filters label {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: rgba(7, 11, 16, .5); border: 1px solid var(--line);
+    border-radius: 12px; padding: 8px 12px; font-size: 14px; font-weight: 600;
+  }
+  .field select {
+    width: 100%; min-height: 48px; padding: 10px 13px;
+    border-radius: 13px; border: 1.5px solid #2b3d55; background: #0a111b; color: var(--text);
+    font-size: 15px;
+  }
+
   /* Tlačítka */
   .btn {
     display: flex; align-items: center; justify-content: center; gap: 10px;
-    width: 100%; min-height: 58px; padding: 14px 18px;
+    width: 100%; min-height: 56px; padding: 13px 18px;
     border-radius: 16px; border: 1px solid transparent;
-    font-weight: 700; font-size: 17px; color: #fff;
+    font-weight: 700; font-size: 16.5px; color: #fff;
     background: var(--card-2);
     transition: transform .08s ease, filter .15s ease, opacity .15s ease;
     text-align: center;
   }
   .btn:active { transform: scale(.985); }
-  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
   .btn-primary {
     background: linear-gradient(135deg, #16a34a, #22c55e);
     box-shadow: 0 10px 26px rgba(34, 197, 94, .22);
@@ -148,7 +161,7 @@
     0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, .45); }
     50% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
   }
-  .hint { color: var(--muted); font-size: 13px; text-align: center; margin: -4px 0 0; }
+  .hint { color: var(--muted); font-size: 13px; text-align: center; margin: 6px 0 0; }
 
   /* Tiket */
   .ticket-card { border-color: rgba(34, 197, 94, .28); }
@@ -210,7 +223,7 @@
   .ticket-actions { display: grid; gap: 9px; }
   .ai-note { color: var(--muted); font-size: 13px; font-style: italic; margin: 2px 0 11px; }
 
-  /* Aktivní tiket a historie */
+  /* Aktivní tiket, manuální ovládání a historie */
   .status-badge {
     display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
     padding: 5px 10px; font-size: 12px; font-weight: 800; letter-spacing: .3px;
@@ -219,17 +232,25 @@
   .status-won { background: var(--green-soft); border: 1px solid rgba(34, 197, 94, .4); color: #86efac; }
   .status-lost { background: var(--red-soft); border: 1px solid rgba(239, 68, 68, .4); color: #fca5a5; }
   .live-leg {
-    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
-    border-top: 1px solid rgba(34, 48, 68, .75); padding: 11px 0;
+    border-top: 1px solid rgba(34, 48, 68, .75); padding: 12px 0;
   }
   .live-leg:first-of-type { border-top: 0; }
-  .live-leg .name { font-weight: 650; font-size: 14.5px; }
+  .live-leg-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .live-leg .name { font-weight: 700; font-size: 15px; }
   .live-leg .pick { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
   .live-state { text-align: right; font-size: 12.5px; white-space: nowrap; }
   .live-state .score { font-size: 17px; font-weight: 800; display: block; }
   .live-state .ok { color: #4ade80; }
   .live-state .bad { color: #f87171; }
   .live-state .wait { color: var(--muted); }
+  .manual-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 9px; }
+  .manual-btn {
+    min-height: 42px; border-radius: 11px; border: 1px solid var(--line);
+    background: #0a111b; color: var(--muted); font-size: 13.5px; font-weight: 700;
+  }
+  .manual-btn.win.selected { background: var(--green-soft); border-color: var(--green); color: #86efac; }
+  .manual-btn.lose.selected { background: var(--red-soft); border-color: var(--red); color: #fca5a5; }
+  .active-actions { display: grid; gap: 9px; margin-top: 12px; }
   .history-item {
     border: 1px solid var(--line); border-radius: 14px; padding: 12px;
     background: rgba(7, 11, 16, .45); margin-bottom: 9px;
@@ -435,6 +456,8 @@
     providerWarnings: []
   };
 
+  const $ = (sel, root) => (root || document).querySelector(sel);
+
   const oddsCache = new Map();
   try {
     const storedFilters = JSON.parse(localStorage.getItem("SPORT_FILTERS") || "null");
@@ -445,8 +468,6 @@
   } catch (e) { /* použij výchozí volby */ }
 
   /* ---------- Pomocné funkce ---------- */
-
-  const $ = (sel, root) => (root || document).querySelector(sel);
 
   function round2(value) {
     return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -685,7 +706,7 @@
       renderProgress();
       renderActive();
       $("#historySection").innerHTML =
-        '<section class="card"><h2>📜 Uzavřené tikety</h2><button class="mini" data-action="export-json" title="Export JSON zálohy">⬇️</button><div class="error-box">Historii se nepodařilo načíst: ' +
+        '<section class="card"><h2>📜 Uzavřené tikety</h2><div class="error-box">Historii se nepodařilo načíst: ' +
         esc(error.message) + '</div><p class="hint" style="margin-top:10px">' +
         (token ? "Zkontroluj GITHUB_TOKEN v nastavení ⚙️." : "Veřejná historie není dostupná. Zkus obnovit ⟳.") +
         "</p></section>";
@@ -748,7 +769,7 @@
     throw new Error("Soubor se mezitím změnil, zkus to znovu.");
   }
 
-  /* ---------- The Odds API ---------- */
+  /* ---------- API data (Fotbal, Basketbal, Tenis) ---------- */
 
   function normalizeTeam(name) {
     return String(name || "")
@@ -945,13 +966,13 @@
       events.push({id:"tennis_"+id,fixture_id:id,home_team:home,away_team:away,commence_time:new Date(Number.isFinite(at)?at:now).toISOString(),sport_title:row.tournament_name||row.event_type_type||"Tenis",sport_key:"tennis_api",bookmakers:[{title:"API Tennis",markets:[{key:"h2h",outcomes:[{name:home,price:h},{name:away,price:a}]}]}],is_live:live});}
     return events;
   }
+
   function selectedSports() {
     return [...document.querySelectorAll("[data-sport-filter]:checked")].map(el => el.dataset.sportFilter);
   }
 
   function sportAllowed(key, title, enabled) {
     const k = String(key || "").toLowerCase();
-    const t = String(title || "").toLowerCase();
     if (k.startsWith("apifootball_")) return enabled.includes("soccer");
     if (k.startsWith("soccer_")) {
       if (!enabled.includes("soccer")) return false;
@@ -1137,7 +1158,7 @@
       toast("Našlo se "+state.candidates.length+" možností. Vyber přesně dvě."+(state.providerWarnings.length?" Zdroje: "+state.providerWarnings.join(" | "):""), state.providerWarnings.length?"err":"ok");
     } catch(error) {
       toast(error.message, "err");
-      if (/The Odds API klíč/.test(error.message)) openSettings();
+      if (/API-Sports klíč/.test(error.message)) openSettings();
     } finally {
       state.busy = false;
       setBusy(button, false, "Načítám nabídku…", "🎯 Doporučit Double AKU (2 zápasy)");
@@ -1185,27 +1206,6 @@
       toast("Dvojice připravena. Zkontroluj a případně uprav kurzy.", "ok");
     } else renderCandidates();
   }
-  async function fetchAiComment(legs) {
-    const key = lsGet(LS.gemini).trim();
-    if (!key || legs.length !== 2) return "";
-    const prompt = "Jsi stručný sportovní analytik. Ke dvěma sportovním tipům napiš jednu českou větu (max 160 znaků) o odhadované pravděpodobnosti. Tipy: " +
-      legs.map(l => l.match + " – " + l.selection + " @ " + fmtOdds(l.odds)).join("; ") + ". Odpověz pouze větou.";
-
-    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + encodeURIComponent(key), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 120 }
-      })
-    });
-    if (!res.ok) return "";
-    const data = await res.json();
-    const text = data && data.candidates && data.candidates[0] && data.candidates[0].content &&
-      data.candidates[0].content.parts && data.candidates[0].content.parts[0] &&
-      data.candidates[0].content.parts[0].text;
-    return text ? String(text).trim().slice(0, 220) : "";
-  }
 
   /* ---------- Výměna zápasu ---------- */
 
@@ -1232,7 +1232,6 @@
 
     state.busy = true;
     try {
-      // Oba zápasy mají velmi nízký kurz -> celá nová dvojice (opět 2 zápasy).
       if (o1 < 1.30 && o2 < 1.30) {
         state.ticket = await buildNewPair();
         renderTicket();
@@ -1254,7 +1253,7 @@
 
       const candidates = await fetchCandidates(1.42, 1.78, exclude);
       if (!candidates.length) {
-        throw new Error("The Odds API nevrátilo vhodný náhradní zápas v pásmu 1.42–1.78.");
+        throw new Error("API nevrátilo vhodný náhradní zápas v pásmu 1.42–1.78.");
       }
 
       let best = null;
@@ -1278,7 +1277,6 @@
       toast("Vyměněno: " + best.match + " (kurz " + fmtOdds(best.odds) + ").", "ok");
     } catch (error) {
       toast(error.message, "err");
-      if (/ODDS_API_KEY/.test(error.message)) openSettings();
     } finally {
       state.busy = false;
     }
@@ -1335,7 +1333,7 @@
       state.live = null;
       state.liveTicketId = null;
       renderAll();
-      toast("Tiket #" + entry.id + " uložen jako pending. Live tracker ho převezme do 5 minut.", "ok");
+      toast("Tiket #" + entry.id + " uložen jako pending.", "ok");
       $("#activeSection").scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
       toast("Uložení selhalo: " + error.message, "err");
@@ -1346,7 +1344,7 @@
     }
   }
 
-  /* ---------- ESPN live skóre ---------- */
+  /* ---------- Live skóre a výsledky (opraveno pro Free tarif API-Football) ---------- */
 
   function espnDateParam() {
     const pad = n => String(n).padStart(2, "0");
@@ -1384,39 +1382,42 @@
     return matches;
   }
 
+  // Opraveno: volá jednotlivě ?id=... místo nepovoleného ids=... na Free tarifu
   async function fetchOddsScores(pending) {
     const key = lsGet(LS.odds).trim();
-    const fixtureIds = [...new Set((pending.ticket || []).map(leg => Number(leg.fixture_id)).filter(id => Number.isInteger(id) && id > 0))];
-    if (!key || !fixtureIds.length) return [];
-    const url = new URL("https://v3.football.api-sports.io/fixtures");
-    url.searchParams.set("ids", fixtureIds.slice(0, 20).join("-"));
-    url.searchParams.set("timezone", "Europe/Prague");
-    const res = await fetch(url.toString(), {
-      headers: { "x-apisports-key": key },
-      cache: "no-store"
-    });
-    let payload = {};
-    try { payload = await res.json(); } catch (error) { /* chybějící JSON */ }
-    if (!res.ok) throw new Error("API-Football výsledky HTTP " + res.status);
-    const apiErrors = payload.errors;
-    if (apiErrors && (Array.isArray(apiErrors) ? apiErrors.length : Object.keys(apiErrors).length)) {
-      const detail = (Array.isArray(apiErrors) ? apiErrors.join("; ") : Object.values(apiErrors).join("; ")).slice(0, 220);
-      throw new Error("API-Football výsledky: " + (detail || "požadavek odmítnut"));
+    const soccerLegs = (pending.ticket || []).filter(leg => (leg.sport === "soccer" || !leg.sport) && Number.isInteger(Number(leg.fixture_id)) && Number(leg.fixture_id) > 0);
+    if (!key || !soccerLegs.length) return [];
+
+    const out = [];
+    for (const leg of soccerLegs) {
+      try {
+        const url = new URL("https://v3.football.api-sports.io/fixtures");
+        url.searchParams.set("id", String(leg.fixture_id));
+        url.searchParams.set("timezone", "Europe/Prague");
+        const res = await fetch(url.toString(), {
+          headers: { "x-apisports-key": key },
+          cache: "no-store"
+        });
+        if (!res.ok) continue;
+        const payload = await res.json();
+        for (const row of payload.response || []) {
+          const status = String(row.fixture && row.fixture.status && row.fixture.status.short || "").toUpperCase();
+          const finished = ["FT", "AET", "PEN"].includes(status);
+          out.push({
+            home: row.teams && row.teams.home && row.teams.home.name || "",
+            away: row.teams && row.teams.away && row.teams.away.name || "",
+            homeGoals: Number(row.goals && row.goals.home) || 0,
+            awayGoals: Number(row.goals && row.goals.away) || 0,
+            state: finished ? "post" : status && status !== "NS" && status !== "TBD" ? "in" : "pre",
+            clock: finished ? "KONEC" : status || "API-Football",
+            sport: "soccer"
+          });
+        }
+      } catch (e) { /* přeskoč jednotlivou chybu */ }
     }
-    return (payload.response || []).map(row => {
-      const status = String(row.fixture && row.fixture.status && row.fixture.status.short || "").toUpperCase();
-      const finished = ["FT", "AET", "PEN"].includes(status);
-      return {
-        home: row.teams && row.teams.home && row.teams.home.name || "",
-        away: row.teams && row.teams.away && row.teams.away.name || "",
-        homeGoals: Number(row.goals && row.goals.home) || 0,
-        awayGoals: Number(row.goals && row.goals.away) || 0,
-        state: finished ? "post" : status && status !== "NS" && status !== "TBD" ? "in" : "pre",
-        clock: finished ? "KONEC" : status || "API-Football",
-        sport: "soccer"
-      };
-    }).filter(match => match.home && match.away);
+    return out;
   }
+
   function evaluateSelection(selection, homeGoals, awayGoals) {
     const sel = String(selection || "").toLowerCase().trim();
     const total = homeGoals + awayGoals;
@@ -1449,55 +1450,82 @@
     if (!pending) { toast("Žádný aktivní pending tiket.", "err"); return; }
 
     const button = $("#refreshLiveBtn");
-    setBusy(button, true, "Načítám live skóre…", "🔄 Obnovit live skóre");
+    setBusy(button, true, "Načítám live skóre…", "🔄 Zkontrolovat výsledky");
     try {
       const [espn, oddsScores] = await Promise.all([fetchEspnMatches(), fetchOddsScores(pending)]);
       const matches = oddsScores.concat(espn);
       state.live = matches;
       state.liveTicketId = pending.id;
       renderActive();
-      toast("Live skóre načteno (" + matches.length + " zápasů).", "ok");
+      toast("Live skóre aktualizováno (" + matches.length + " zápasů).", "ok");
     } catch (error) {
-      toast("ESPN se nepodařilo načíst: " + error.message, "err");
+      toast("Chyba při načítání skóre: " + error.message, "err");
     } finally {
-      setBusy($("#refreshLiveBtn"), false, "Načítám live skóre…", "🔄 Obnovit live skóre");
+      setBusy($("#refreshLiveBtn"), false, "Načítám live skóre…", "🔄 Zkontrolovat výsledky");
     }
   }
 
   async function setManualResult(index, result) {
-    const pending=latestPending();
-    if(!pending||!["won","lost"].includes(result)||(pending.ticket||[])[index]==null)return;
-    pending.ticket[index].result=result;
-    try { state.history=await saveHistory(state.history,"Ruční výsledek tiketu #"+pending.id);renderAll();toast("Výsledek zápasu uložen.","ok"); }
-    catch(error){toast("Výsledek se nepodařilo uložit: "+error.message,"err");}
+    const pending = latestPending();
+    if (!pending || !["won", "lost"].includes(result) || (pending.ticket || [])[index] == null) return;
+    // Opětovné kliknutí volbu zruší
+    pending.ticket[index].result = (pending.ticket[index].result === result) ? null : result;
+    renderActive();
+    try {
+      state.history = await saveHistory(state.history, "Ruční výsledek tiketu #" + pending.id);
+      renderAll();
+      toast("Výsledek zápasu uložen.", "ok");
+    } catch (error) {
+      toast("Výsledek se nepodařilo uložit: " + error.message, "err");
+    }
   }
 
   async function deleteTicketById(ticketId) {
-    const id=Number(ticketId);
-    const ticket=state.history.find(item=>Number(item.id)===id);
-    if(!ticket)return;
-    if(!confirm("Opravdu odstranit tiket #"+id+" z tickets_history.json?"))return;
+    const id = Number(ticketId);
+    const ticket = state.history.find(item => Number(item.id) === id);
+    if (!ticket) return;
+    if (!confirm("Opravdu odstranit tiket #" + id + " z tickets_history.json?")) return;
     try {
-      const next=state.history.filter(item=>Number(item.id)!==id);
-      state.history=await saveHistory(next,"Odstraněn tiket #"+id);
-      if(state.liveTicketId===id){state.live=null;state.liveTicketId=null;}
-      renderAll();toast("Tiket #"+id+" odstraněn z historie.","ok");
-    } catch(error){toast("Tiket se nepodařilo odstranit: "+error.message,"err");}
+      const next = state.history.filter(item => Number(item.id) !== id);
+      state.history = await saveHistory(next, "Odstraněn tiket #" + id);
+      if (state.liveTicketId === id) { state.live = null; state.liveTicketId = null; }
+      renderAll();
+      toast("Tiket #" + id + " odstraněn z historie.", "ok");
+    } catch (error) {
+      toast("Tiket se nepodařilo odstranit: " + error.message, "err");
+    }
   }
 
   async function closeManualEvaluation() {
-    const pending=latestPending(),legs=pending&&(pending.ticket||[]).slice(0,2);
-    if(!pending||!legs||legs.length!==2||legs.some(x=>!["won","lost"].includes(x.result))){toast("Nejdřív nastav výsledek obou zápasů.","err");return;}
-    pending.status=legs.some(x=>x.result==="lost")?"lost":"won";
-    try {state.history=await saveHistory(state.history,"Uzavřeno vyhodnocení tiketu #"+pending.id);state.live=null;renderAll();toast("Tiket uzavřen jako "+pending.status.toUpperCase()+".","ok");}
-    catch(error){pending.status="pending";toast("Tiket se nepodařilo uložit: "+error.message,"err");}
+    const pending = latestPending();
+    const legs = pending && (pending.ticket || []).slice(0, 2);
+    if (!pending || !legs || legs.length !== 2) return;
+
+    const anyLost = legs.some(x => x.result === "lost");
+    const allDecided = legs.every(x => ["won", "lost"].includes(x.result));
+    if (!anyLost && !allDecided) {
+      toast("Nejdřív nastav výsledek obou zápasů (✅ Výhra / ❌ Prohra).", "err");
+      return;
+    }
+
+    pending.status = anyLost ? "lost" : "won";
+    try {
+      state.history = await saveHistory(state.history, "Uzavřeno vyhodnocení tiketu #" + pending.id);
+      state.live = null;
+      renderAll();
+      toast("Tiket uzavřen jako " + pending.status.toUpperCase() + ".", "ok");
+    } catch (error) {
+      pending.status = "pending";
+      renderAll();
+      toast("Tiket se nepodařilo uložit: " + error.message, "err");
+    }
   }
 
   function exportHistoryJson() {
-    const blob=new Blob([JSON.stringify(state.history,null,2)+"\n"],{type:"application/json"});
-    const url=URL.createObjectURL(blob),a=document.createElement("a");
-    a.href=url;a.download="tickets_history_backup.json";a.click();
-    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    const blob = new Blob([JSON.stringify(state.history, null, 2) + "\n"], { type: "application/json" });
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = "tickets_history_backup.json"; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   /* ---------- Vykreslování ---------- */
@@ -1538,7 +1566,7 @@
       '<div class="leg">' +
         '<div class="leg-top">' +
           '<span class="leg-num">Zápas ' + (i + 1) + '</span>' +
-          '<span class="league">' + esc(leg.league || "Fotbal") + '</span>' +
+          '<span class="league">' + esc(leg.league || "Sport") + '</span>' +
           '<button class="mini" data-action="swap-leg" data-leg="' + i + '" title="Vyměnit tento zápas" aria-label="Vyměnit zápas ' + (i + 1) + '">🔄</button>' +
         '</div>' +
         '<div class="match">' + esc(leg.match) + '</div>' +
@@ -1602,7 +1630,6 @@
       const low = total > 0 && total < 1.80;
       swapBtn.disabled = !low;
       swapBtn.classList.toggle("attention", low);
-      swapBtn.title = low ? "Vymění slabší zápas tak, aby součin vyšel kolem 2.20" : "Aktivní až při součinu pod 1.80";
     }
   }
 
@@ -1616,11 +1643,11 @@
     const liveData = (state.live && state.liveTicketId === pending.id) ? state.live : null;
 
     const legsHtml = legs.map((leg, i) => {
-      let stateHtml = '<span class="wait">Klepni na obnovení</span>';
+      let stateHtml = '<span class="wait">Zvol níže nebo obnov</span>';
       if (liveData) {
         const found = findLiveMatch(leg, liveData);
         if (!found) {
-          stateHtml = '<span class="wait">Nenalezeno v ESPN</span>';
+          stateHtml = '<span class="wait">Nenalezeno v API</span>';
         } else {
           const result = evaluateSelection(leg.selection, found.homeGoals, found.awayGoals);
           const score = found.homeGoals + ":" + found.awayGoals;
@@ -1637,13 +1664,23 @@
         }
       }
 
+      const manRes = leg.result || "";
+
       return '<div class="live-leg">' +
-        '<div><div class="name">' + esc(leg.match) + '</div>' +
-        '<div class="countdown small" data-countdown data-start="' + esc(leg.commence_time || "") + '" data-live="' + (leg.is_live ? "true" : "false") + '">' + esc(countdownText(leg.commence_time, leg.is_live)) + '</div>' +
-        '<div class="pick">' + esc(leg.selection) + ' · kurz ' + fmtOdds(leg.real_odds || leg.odds) + ' · ' + esc(leg.league || "") + '</div></div>' +
-        '<div class="live-state">' + stateHtml + '</div>' +
+        '<div class="live-leg-top">' +
+          '<div><div class="name">' + esc(leg.match) + '</div>' +
+          '<div class="countdown small" data-countdown data-start="' + esc(leg.commence_time || "") + '" data-live="' + (leg.is_live ? "true" : "false") + '">' + esc(countdownText(leg.commence_time, leg.is_live)) + '</div>' +
+          '<div class="pick">' + esc(leg.selection) + ' · kurz ' + fmtOdds(leg.real_odds || leg.odds) + ' · ' + esc(leg.league || "") + '</div></div>' +
+          '<div class="live-state">' + stateHtml + '</div>' +
+        '</div>' +
+        '<div class="manual-row">' +
+          '<button type="button" class="manual-btn win ' + (manRes === "won" ? "selected" : "") + '" data-action="manual-result" data-leg="' + i + '" data-result="won">✅ Výhra</button>' +
+          '<button type="button" class="manual-btn lose ' + (manRes === "lost" ? "selected" : "") + '" data-action="manual-result" data-leg="' + i + '" data-result="lost">❌ Prohra</button>' +
+        '</div>' +
       '</div>';
     }).join("");
+
+    const canClose = legs.length === 2 && (legs.some(x => x.result === "lost") || legs.every(x => ["won", "lost"].includes(x.result)));
 
     section.innerHTML =
       '<section class="card">' +
@@ -1655,12 +1692,12 @@
           esc(pending.date || "") + ' · celkový kurz <b>' + fmtOdds(pending.total_odds) + '</b> · vklad ' + fmtKc(progression.stake) +
         '</div>' +
         legsHtml +
-        '<div style="margin-top:12px">' +
+        '<div class="active-actions">' +
           '<button class="btn btn-ghost" id="refreshLiveBtn" data-action="refresh-live">🔄 Zkontrolovat výsledky</button>' +
-          '<button class="btn btn-green" data-action="close-evaluation" '+(legs.length!==2||legs.some(x=>!x.result)?'disabled':'')+'>🏁 Uzavřít vyhodnocení</button>' +
-          '<button class="btn btn-danger" data-action="delete-ticket" data-id="'+esc(pending.id)+'">🗑️ Zrušit a odstranit tiket</button>' +
+          '<button class="btn btn-green" data-action="close-evaluation" ' + (canClose ? '' : 'disabled') + '>🏁 Uzavřít vyhodnocení</button>' +
+          '<button class="btn btn-danger" data-action="delete-ticket" data-id="' + esc(pending.id) + '">🗑️ Zrušit a odstranit tiket</button>' +
         '</div>' +
-        '<p class="hint" style="margin-top:9px">Skóre z API-Football a záložního ESPN API. Hlášení o výkopu a gólech posílá <code>live_tracker.py</code> na Telegram.</p>' +
+        '<p class="hint" style="margin-top:9px">Pokud API menší ligu nenajde, naklikej nahoře ✅ Výhra / ❌ Prohra a pak klepni na Uzavřít vyhodnocení.</p>' +
       '</section>';
   }
 
@@ -1689,7 +1726,7 @@
           '</div>' +
           legs +
           '<div class="muted small" style="margin-top:7px">Celkový kurz ' + fmtOdds(t.total_odds) + '</div>' +
-          '<button class="btn btn-ghost" style="min-height:44px;margin-top:8px" data-action="delete-ticket" data-id="'+esc(t.id)+'">🗑️ Odstranit tiket z historie</button>' +
+          '<button class="btn btn-ghost" style="min-height:44px;margin-top:8px" data-action="delete-ticket" data-id="' + esc(t.id) + '">🗑️ Odstranit tiket z historie</button>' +
         '</div>';
       }).join("");
     }
@@ -1789,7 +1826,7 @@
     else if (action === "swap-leg") performSwap(Number(target.dataset.leg), true);
     else if (action === "confirm-ticket") confirmTicket();
     else if (action === "refresh-live") refreshLive();
-    else if (action === "manual-result") setManualResult(Number(target.dataset.leg),target.dataset.result);
+    else if (action === "manual-result") setManualResult(Number(target.dataset.leg), target.dataset.result);
     else if (action === "close-evaluation") closeManualEvaluation();
     else if (action === "delete-ticket") deleteTicketById(target.dataset.id);
     else if (action === "reload-history") loadHistory();
