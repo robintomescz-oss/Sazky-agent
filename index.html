@@ -51,7 +51,6 @@
   button { cursor: pointer; }
   .wrap { width: 100%; max-width: 780px; margin: 0 auto; padding: 0 16px; }
 
-  /* Horní lišta */
   .topbar {
     position: sticky; top: 0; z-index: 30;
     backdrop-filter: blur(14px);
@@ -92,7 +91,6 @@
   .muted { color: var(--muted); }
   .small { font-size: 13px; }
 
-  /* Progrese */
   .progress-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
   .step-badge {
     display: inline-flex; align-items: center; gap: 8px;
@@ -120,7 +118,6 @@
   .profit b.pos { color: #4ade80; }
   .profit b.neg { color: #fca5a5; }
 
-  /* Filtry */
   .sport-filters { display: flex; gap: 10px; flex-wrap: wrap; }
   .sport-filters label {
     display: inline-flex; align-items: center; gap: 7px;
@@ -133,7 +130,6 @@
     font-size: 15px;
   }
 
-  /* Tlačítka */
   .btn {
     display: flex; align-items: center; justify-content: center; gap: 10px;
     width: 100%; min-height: 56px; padding: 13px 18px;
@@ -163,7 +159,6 @@
   }
   .hint { color: var(--muted); font-size: 13px; text-align: center; margin: 6px 0 0; }
 
-  /* Tiket */
   .ticket-card { border-color: rgba(34, 197, 94, .28); }
   .ticket-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
   .ticket-head h2 { margin: 0; }
@@ -223,7 +218,6 @@
   .ticket-actions { display: grid; gap: 9px; }
   .ai-note { color: var(--muted); font-size: 13px; font-style: italic; margin: 2px 0 11px; }
 
-  /* Aktivní tiket, manuální ovládání a historie */
   .status-badge {
     display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
     padding: 5px 10px; font-size: 12px; font-weight: 800; letter-spacing: .3px;
@@ -268,7 +262,6 @@
   .info-list li { margin: 5px 0; }
   .info-list b { color: var(--text); }
 
-  /* Nastavení */
   .modal {
     position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center;
     background: rgba(0, 0, 0, .66); backdrop-filter: blur(4px);
@@ -306,7 +299,6 @@
   }
   .repo-note code { color: #e0f2fe; }
 
-  /* Toast */
   #toast {
     position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom));
     transform: translate(-50%, 20px); z-index: 80;
@@ -377,7 +369,6 @@
   </section>
 </main>
 
-<!-- Nastavení -->
 <div class="modal hidden" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
   <div class="sheet">
     <div class="sheet-head">
@@ -465,9 +456,7 @@
     document.querySelectorAll("[data-sport-filter]").forEach(el => { el.checked = chosen.includes(el.dataset.sportFilter); });
     localStorage.setItem("SPORT_FILTERS_V2", "1");
     $("#timeWindow").value = Math.min(5, Number(localStorage.getItem("TIME_WINDOW")) || 2);
-  } catch (e) { /* použij výchozí volby */ }
-
-  /* ---------- Pomocné funkce ---------- */
+  } catch (e) {}
 
   function round2(value) {
     return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -523,7 +512,7 @@
     try {
       if (value) localStorage.setItem(key, value);
       else localStorage.removeItem(key);
-    } catch (e) { /* privátní režim */ }
+    } catch (e) {}
   }
 
   let toastTimer = null;
@@ -542,8 +531,6 @@
       ? '<span class="spinner" aria-hidden="true"></span> ' + esc(labelBusy)
       : esc(labelIdle);
   }
-
-  /* ---------- Výpočet progrese a bankrollu ---------- */
 
   function calculateProgression(history) {
     const rows = history || [];
@@ -615,8 +602,6 @@
     if (!pending.length) return null;
     return pending.slice().sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0)).pop();
   }
-
-  /* ---------- GitHub REST API ---------- */
 
   function ghHeaders(extra) {
     const headers = Object.assign({
@@ -757,7 +742,7 @@
 
       if (!res.ok) {
         let detail = "";
-        try { detail = (await res.json()).message || ""; } catch (e) { /* ignore */ }
+        try { detail = (await res.json()).message || ""; } catch (e) {}
         throw new Error("GitHub zápis " + res.status + (detail ? " – " + detail : ""));
       }
 
@@ -768,8 +753,6 @@
 
     throw new Error("Soubor se mezitím změnil, zkus to znovu.");
   }
-
-  /* ---------- API data (Fotbal, Basketbal, Tenis) ---------- */
 
   function normalizeTeam(name) {
     return String(name || "")
@@ -816,7 +799,7 @@
         throw new Error("API-Football se nepodařilo načíst (síť/CORS).");
       }
       let payload = {};
-      try { payload = await response.json(); } catch (error) { /* chybějící JSON */ }
+      try { payload = await response.json(); } catch (error) {}
       if (!response.ok) throw new Error("API-Football HTTP " + response.status);
       const apiErrors = payload.errors;
       if (apiErrors && (Array.isArray(apiErrors) ? apiErrors.length : Object.keys(apiErrors).length)) {
@@ -841,8 +824,8 @@
         const markets = [];
         for (const bet of bookmaker.bets || []) {
           const betName = String(bet.name || "").trim();
-          const isWinner = /match winner|1x2|full time|winner/i.test(betName);
-          const isTotals = /goals?.*over\/under|over\/under|total goals|over\/under/i.test(betName);
+          const isWinner = /^(match winner|1x2|full time result)$/i.test(betName);
+          const isTotals = /^goals over\/under$/i.test(betName);
           if (!isWinner && !isTotals) continue;
           const outcomes = [];
           let totalLine = "";
@@ -865,13 +848,6 @@
             if (name) outcomes.push({ name, price: odd });
           }
           if (outcomes.length >= 2) markets.push({ key: isWinner ? "h2h" : "totals_" + totalLine, outcomes });
-        }
-        if (!markets.length) {
-          for (const bet of bookmaker.bets || []) {
-            const outcomes=[];
-            for(const value of bet.values||[]){const label=String(value.value||"").trim(),odd=Number(String(value.odd||"").replace(",","."));if(!(odd>1))continue;let name="";if(/^(home|1)$/i.test(label)||normalizeTeam(label)===normalizeTeam(home))name=home;else if(/^(away|2)$/i.test(label)||normalizeTeam(label)===normalizeTeam(away))name=away;else if(/^(draw|x)$/i.test(label))name="Draw";if(name)outcomes.push({name,price:odd});}
-            if(new Set(outcomes.map(x=>x.name)).size>=2)markets.push({key:"h2h",outcomes});
-          }
         }
         if (markets.length) bookmakers.push({ title: bookmaker.name || "", markets });
       }
@@ -1139,7 +1115,7 @@
     state.busy = true;
     setBusy(button, true, "Načítám nabídku…", "🎯 Doporučit Double AKU (2 zápasy)");
     try {
-      const pool = await fetchCandidates(1.50, 1.85);
+      const pool = await fetchCandidates(1.35, 1.72);
       pool.sort((a,b)=>(Number(b.probability)||0)-(Number(a.probability)||0));
       state.candidates = pool.slice(0,5);
       state.selectedCandidates = [];
@@ -1206,8 +1182,6 @@
       toast("Dvojice připravena. Zkontroluj a případně uprav kurzy.", "ok");
     } else renderCandidates();
   }
-
-  /* ---------- Výměna zápasu ---------- */
 
   async function buildNewPair() {
     const pool = (await fetchCandidates(1.10, 1.65)).filter(c => c.odds >= 1.10 && c.odds <= 1.65);
@@ -1282,8 +1256,6 @@
     }
   }
 
-  /* ---------- Uložení tiketu ---------- */
-
   async function confirmTicket() {
     if (state.busy) return;
     if (!state.ticket || state.ticket.length !== 2) { toast("Nejdřív si nech doporučit Double AKU.", "err"); return; }
@@ -1344,8 +1316,6 @@
     }
   }
 
-  /* ---------- Live skóre a výsledky (opraveno pro Free tarif API-Football) ---------- */
-
   function espnDateParam() {
     const pad = n => String(n).padStart(2, "0");
     const fmt = d => d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate());
@@ -1382,7 +1352,6 @@
     return matches;
   }
 
-  // Opraveno: volá jednotlivě ?id=... místo nepovoleného ids=... na Free tarifu
   async function fetchOddsScores(pending) {
     const key = lsGet(LS.odds).trim();
     const soccerLegs = (pending.ticket || []).filter(leg => (leg.sport === "soccer" || !leg.sport) && Number.isInteger(Number(leg.fixture_id)) && Number(leg.fixture_id) > 0);
@@ -1413,7 +1382,7 @@
             sport: "soccer"
           });
         }
-      } catch (e) { /* přeskoč jednotlivou chybu */ }
+      } catch (e) {}
     }
     return out;
   }
@@ -1468,7 +1437,6 @@
   async function setManualResult(index, result) {
     const pending = latestPending();
     if (!pending || !["won", "lost"].includes(result) || (pending.ticket || [])[index] == null) return;
-    // Opětovné kliknutí volbu zruší
     pending.ticket[index].result = (pending.ticket[index].result === result) ? null : result;
     renderActive();
     try {
@@ -1527,8 +1495,6 @@
     a.href = url; a.download = "tickets_history_backup.json"; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-
-  /* ---------- Vykreslování ---------- */
 
   function renderProgress() {
     const p = calculateProgression(state.history);
@@ -1752,8 +1718,6 @@
     renderHistory();
   }
 
-  /* ---------- Nastavení ---------- */
-
   function updateKeyStates() {
     const pairs = [
       ["#oddsKeyState", LS.odds],
@@ -1808,8 +1772,6 @@
     }
   }
 
-  /* ---------- Události ---------- */
-
   document.addEventListener("click", function (event) {
     const target = event.target.closest("[data-action]");
     if (!target) {
@@ -1856,8 +1818,6 @@
     if (event.key === "Escape") closeSettings();
   });
 
-  /* ---------- Start ---------- */
-
   renderProgress();
   updateKeyStates();
   loadHistory({ silent: true });
@@ -1866,7 +1826,7 @@
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
-      navigator.serviceWorker.register("./sw.js").catch(function () { /* offline režim není kritický */ });
+      navigator.serviceWorker.register("./sw.js").catch(function () {});
     });
   }
 })();
