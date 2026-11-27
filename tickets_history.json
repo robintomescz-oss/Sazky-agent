@@ -16,7 +16,8 @@
         "commence_time": "2026-11-27T19:35:00.000Z",
         "is_live": true,
         "sport": "tennis",
-        "fixture_id": "12183081"
+        "fixture_id": "12183081",
+        "result": "won"
       },
       {
         "match": "D. Sweeny vs C. Langmo",
