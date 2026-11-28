@@ -52,7 +52,8 @@
         "commence_time": "2026-11-28T06:00:00+01:00",
         "is_live": false,
         "sport": "soccer",
-        "fixture_id": 1510509
+        "fixture_id": 1510509,
+        "result": "won"
       },
       {
         "match": "Yongin City vs Paju Citizen",
