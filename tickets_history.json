@@ -70,39 +70,5 @@
       }
     ],
     "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
-  },
-  {
-    "id": 3,
-    "date": "2026-11-28 09:04",
-    "base_stake": 1000,
-    "total_odds": 1.92,
-    "status": "pending",
-    "ticket": [
-      {
-        "match": "Hillerød vs Vendsyssel FF",
-        "league": "1. Division",
-        "selection": "Neprohra domácích (1X)",
-        "odds": 1.36,
-        "real_odds": 1.36,
-        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
-        "commence_time": "2026-11-28T13:00:00+01:00",
-        "is_live": false,
-        "sport": "soccer",
-        "fixture_id": 1551385
-      },
-      {
-        "match": "Great Britain vs Spain",
-        "league": "Davis Cup - World Group Teams",
-        "selection": "Výhra hostů (2)",
-        "odds": 1.41,
-        "real_odds": 1.41,
-        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
-        "commence_time": "2026-11-28T11:00:00.000Z",
-        "is_live": false,
-        "sport": "tennis",
-        "fixture_id": "12183071"
-      }
-    ],
-    "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
   }
 ]
