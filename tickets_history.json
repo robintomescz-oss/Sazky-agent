@@ -29,7 +29,8 @@
         "commence_time": "2026-11-27T23:30:00.000Z",
         "is_live": false,
         "sport": "tennis",
-        "fixture_id": "12183098"
+        "fixture_id": "12183098",
+        "result": "won"
       }
     ],
     "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
