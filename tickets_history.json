@@ -88,7 +88,8 @@
         "commence_time": "2026-11-28T11:45:00+01:00",
         "is_live": false,
         "sport": "soccer",
-        "fixture_id": 1551156
+        "fixture_id": 1551156,
+        "result": "lost"
       },
       {
         "match": "FC Vitebsk vs Arsenal",
