@@ -106,5 +106,39 @@
       }
     ],
     "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
+  },
+  {
+    "id": 4,
+    "date": "2026-11-28 14:02",
+    "base_stake": 1000,
+    "total_odds": 1.82,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "NK Lokomotiva Zagreb vs NK Slaven Belupo",
+        "league": "HNL",
+        "selection": "Neprohra domácích (1X)",
+        "odds": 1.35,
+        "real_odds": 1.35,
+        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
+        "commence_time": "2026-11-28T15:00:00+01:00",
+        "is_live": false,
+        "sport": "soccer",
+        "fixture_id": 1548570
+      },
+      {
+        "match": "Dukla Banská Bystrica vs Ružomberok",
+        "league": "Super Liga",
+        "selection": "Over 2 gólů",
+        "odds": 1.35,
+        "real_odds": 1.35,
+        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
+        "commence_time": "2026-11-28T15:30:00+01:00",
+        "is_live": false,
+        "sport": "soccer",
+        "fixture_id": 1551605
+      }
+    ],
+    "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
   }
 ]
