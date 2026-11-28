@@ -34,5 +34,39 @@
       }
     ],
     "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
+  },
+  {
+    "id": 2,
+    "date": "2026-11-28 03:27",
+    "base_stake": 1000,
+    "total_odds": 1.8,
+    "status": "pending",
+    "ticket": [
+      {
+        "match": "Gimhae City vs Seongnam FC",
+        "league": "K League 2",
+        "selection": "Neprohra hostů (X2)",
+        "odds": 1.34,
+        "real_odds": 1.34,
+        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
+        "commence_time": "2026-11-28T06:00:00+01:00",
+        "is_live": false,
+        "sport": "soccer",
+        "fixture_id": 1510509
+      },
+      {
+        "match": "Yongin City vs Paju Citizen",
+        "league": "K League 2",
+        "selection": "Over 2 gólů",
+        "odds": 1.34,
+        "real_odds": 1.34,
+        "confidence_reason": "Nejvyšší odhadovaná pravděpodobnost podle normalizovaných průměrných kurzů EU.",
+        "commence_time": "2026-11-28T06:00:00+01:00",
+        "is_live": false,
+        "sport": "soccer",
+        "fixture_id": 1510514
+      }
+    ],
+    "summary": "Double AKU – přesně 2 zápasy se zadanými reálnými kurzy z Tipsportu."
   }
 ]
